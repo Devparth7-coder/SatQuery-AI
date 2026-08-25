@@ -1,0 +1,30 @@
+{
+  "source": "samples/river_wetland.png",
+  "shape": [
+    1051,
+    1400
+  ],
+  "edits": [
+    {
+      "kind": "vegetation_cleared_to_bare",
+      "pixels": 30481,
+      "fraction": 0.02072
+    },
+    {
+      "kind": "vegetation_to_builtup",
+      "pixels": 20086,
+      "fraction": 0.01365
+    },
+    {
+      "kind": "land_to_water",
+      "pixels": 15229,
+      "fraction": 0.01035
+    }
+  ],
+  "total_changed_fraction": 0.04472,
+  "applied_shift_px": [
+    6,
+    -4
+  ],
+  "note": "Ground truth for validating change detection output."
+}

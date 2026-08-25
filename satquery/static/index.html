@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SatQuery AI — Vision-Language Assistant for Remote Sensing</title>
+<style>
+  :root{
+    --bg:#070b14; --panel:#0d1424; --panel2:#111a2e; --line:#1e2a44;
+    --txt:#e6edf7; --dim:#8ea0bd; --accent:#4da3ff; --accent2:#22d39a;
+    --warn:#ffb020; --danger:#ff5c5c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 12% -10%, #12203a 0%, transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, #0d2b2a 0%, transparent 55%),
+      var(--bg);
+    color:var(--txt); font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:14px; padding:12px 20px;
+    border-bottom:1px solid var(--line); background:rgba(9,14,25,.82); backdrop-filter:blur(10px);
+    flex:0 0 auto;
+  }
+  .logo{width:36px;height:36px;flex:0 0 auto}
+  h1{font-size:17px;margin:0;letter-spacing:.3px;font-weight:650}
+  .sub{font-size:11.5px;color:var(--dim);margin-top:1px}
+  .tag{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .chip{
+    font-size:10.5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;
+    color:var(--dim);background:#0b1322;white-space:nowrap
+  }
+  .chip.live{color:var(--accent2);border-color:#194f3d;background:#08211a}
+  main{display:grid;grid-template-columns:308px 1fr 396px;gap:14px;padding:14px;flex:1 1 auto;min-height:0}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:var(--radius);display:flex;flex-direction:column;min-height:0}
+  .phead{padding:11px 14px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:700;
+    letter-spacing:.9px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:8px}
+  .pbody{padding:14px;overflow:auto;flex:1 1 auto;min-height:0}
+  .pbody::-webkit-scrollbar,.viewer::-webkit-scrollbar{width:8px;height:8px}
+  .pbody::-webkit-scrollbar-thumb,.viewer::-webkit-scrollbar-thumb{background:#22304d;border-radius:8px}
+
+  .drop{border:1.5px dashed #2b3c5e;border-radius:12px;padding:18px 12px;text-align:center;
+    cursor:pointer;transition:.18s;background:#0a1120}
+  .drop:hover,.drop.over{border-color:var(--accent);background:#0d1a2f}
+  .drop svg{opacity:.75;margin-bottom:6px}
+  .drop b{display:block;font-size:13px}
+  .drop span{font-size:11px;color:var(--dim)}
+  .thumb{width:100%;border-radius:9px;margin-top:9px;border:1px solid var(--line);display:block}
+
+  label.f{display:block;font-size:11px;color:var(--dim);margin:14px 0 5px;letter-spacing:.4px;
+    text-transform:uppercase;font-weight:600}
+  input[type=number],select,input[type=text]{
+    width:100%;background:#0a1120;border:1px solid var(--line);color:var(--txt);
+    padding:8px 10px;border-radius:9px;font-size:13px;outline:none;font-family:inherit}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  button{
+    width:100%;margin-top:14px;padding:11px;border:0;border-radius:10px;cursor:pointer;
+    background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;font-weight:700;font-size:13.5px;
+    font-family:inherit;transition:.15s;letter-spacing:.2px}
+  button:hover{filter:brightness(1.12)} button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  button.ghost{background:#101a2c;border:1px solid var(--line);color:var(--dim);font-weight:600;
+    padding:8px;font-size:12px;margin-top:8px}
+  button.ghost:hover{color:var(--txt);border-color:var(--accent)}
+
+  .samples{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .samp{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
+    background:#0a1120;transition:.15s;position:relative}
+  .samp:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .samp img{width:100%;height:58px;object-fit:cover;display:block}
+  .samp div{font-size:9.5px;padding:4px 5px;color:var(--dim);text-align:center;line-height:1.25}
+
+  .viewer{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;
+    overflow:auto;min-height:0;position:relative}
+  .viewer img{max-width:100%;max-height:100%;border-radius:11px;object-fit:contain;
+    box-shadow:0 12px 44px rgba(0,0,0,.55)}
+  .tabs{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tab{font-size:11.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);
+    background:#0a1120;color:var(--dim);cursor:pointer;transition:.15s;white-space:nowrap}
+  .tab:hover{color:var(--txt)}
+  .tab.on{background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;border-color:transparent;font-weight:650}
+
+  .legend{display:flex;flex-direction:column;gap:5px}
+  .lg{display:flex;align-items:center;gap:8px;font-size:11.5px}
+  .sw{width:12px;height:12px;border-radius:3px;flex:0 0 auto;border:1px solid rgba(255,255,255,.18)}
+  .lg .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lg .vl{color:var(--dim);font-variant-numeric:tabular-nums;font-size:11px}
+  .bar{height:4px;background:#0a1120;border-radius:4px;overflow:hidden;margin-top:2px}
+  .bar i{display:block;height:100%;border-radius:4px}
+
+  .chatwrap{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
+  .chat{flex:1 1 auto;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:11px;min-height:0}
+  .msg{max-width:95%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6;
+    animation:pop .22s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .me{align-self:flex-end;background:linear-gradient(135deg,#2b5fa8,#20806a);color:#fff;
+    border-bottom-right-radius:4px}
+  .ai{align-self:flex-start;background:#0c1526;border:1px solid var(--line);
+    border-bottom-left-radius:4px;width:100%}
+  .ai b,.ai strong{color:#fff}
+  .ai code{background:#0a1120;padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .meta{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
+  .pill{font-size:9.5px;padding:2.5px 8px;border-radius:999px;background:#0a1424;
+    border:1px solid var(--line);color:var(--dim);letter-spacing:.3px}
+  .pill.i{color:var(--accent);border-color:#1c3a5e}
+  .pill.c{color:var(--accent2);border-color:#174a39}
+  .pill.w{color:var(--warn);border-color:#4a3a12}
+  details.ev{margin-top:9px}
+  details.ev summary{cursor:pointer;font-size:10.5px;color:var(--dim);outline:none;
+    letter-spacing:.4px;text-transform:uppercase;font-weight:600}
+  details.ev summary:hover{color:var(--accent)}
+  .evrow{font-size:10.5px;color:var(--dim);padding:5px 0;border-bottom:1px dashed #182440;
+    display:grid;grid-template-columns:1fr auto;gap:8px}
+  .evrow .k{color:#b9c8e0;font-family:ui-monospace,monospace;font-size:10px}
+  .evrow .m{grid-column:1/-1;font-size:9.5px;opacity:.72;font-style:italic}
+  .ovthumb{width:100%;border-radius:9px;margin-top:9px;border:1px solid var(--line);cursor:zoom-in}
+
+  .askbar{border-top:1px solid var(--line);padding:11px;display:flex;gap:8px;flex:0 0 auto;background:#0a1120}
+  .askbar input{flex:1;border-radius:10px}
+  .askbar button{width:auto;margin:0;padding:9px 17px;border-radius:10px}
+  .sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 11px 10px;flex:0 0 auto;background:#0a1120}
+  .sg{font-size:10.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);
+    background:#0c1526;color:var(--dim);cursor:pointer;transition:.15s}
+  .sg:hover{color:var(--txt);border-color:var(--accent);background:#0f1e35}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .st{background:#0a1120;border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+  .st .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+  .st .l{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+  .empty{color:var(--dim);text-align:center;font-size:12.5px;padding:36px 18px;line-height:1.7}
+  .empty svg{opacity:.35;margin-bottom:10px}
+  .spin{width:15px;height:15px;border:2px solid #24304a;border-top-color:var(--accent);
+    border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .err{color:var(--danger);font-size:12px;margin-top:9px;padding:8px 10px;background:#2a1013;
+    border:1px solid #4a1c22;border-radius:8px}
+  .hint{font-size:10.5px;color:var(--dim);margin-top:7px;line-height:1.5}
+  .modal{position:fixed;inset:0;background:rgba(3,6,12,.93);display:none;align-items:center;
+    justify-content:center;z-index:99;padding:26px;cursor:zoom-out}
+  .modal.on{display:flex}
+  .modal img{max-width:96%;max-height:96%;border-radius:12px}
+  @media(max-width:1180px){main{grid-template-columns:1fr;overflow:auto}
+    body{overflow:auto;height:auto}.chat{max-height:400px}}
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 48 48" fill="none">
+    <circle cx="24" cy="24" r="15" stroke="#4da3ff" stroke-width="2.2"/>
+    <ellipse cx="24" cy="24" rx="15" ry="6.5" stroke="#22d39a" stroke-width="1.6" opacity=".85"/>
+    <path d="M9 20h30M9 28h30" stroke="#22d39a" stroke-width="1.1" opacity=".45"/>
+    <circle cx="24" cy="24" r="4.2" fill="#4da3ff"/>
+    <path d="M38 10l6-6M44 4h-5M44 4v5" stroke="#ffb020" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <div>
+    <h1>SatQuery AI</h1>
+    <div class="sub">Interactive Vision-Language Assistant for Multimodal Remote Sensing Image Analysis</div>
+  </div>
+  <div class="tag">
+    <span class="chip">ISRO · Space Technology</span>
+    <span class="chip" id="engine">Engine: on-device CV</span>
+    <span class="chip live" id="status">● ready</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT -->
+  <section class="panel">
+    <div class="phead">① Scene Input</div>
+    <div class="pbody">
+      <div class="drop" id="drop1">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.6">
+          <path d="M12 16V4m0 0L8 8m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <b>Drop scene (T1)</b><span>PNG / JPG / TIFF · click to browse</span>
+      </div>
+      <img id="th1" class="thumb" style="display:none"/>
+      <input type="file" id="f1" accept="image/*" hidden/>
+
+      <label class="f">Optional — Second date (T2) for change detection</label>
+      <div class="drop" id="drop2" style="padding:12px">
+        <b style="font-size:12px">Drop scene (T2)</b><span>enables bi-temporal analysis</span>
+      </div>
+      <img id="th2" class="thumb" style="display:none"/>
+      <input type="file" id="f2" accept="image/*" hidden/>
+
+      <div class="row" style="margin-top:6px">
+        <div><label class="f">GSD (m/px)</label><input type="number" id="gsd" value="10" min="0.1" step="0.1"/></div>
+        <div><label class="f">Clusters (k)</label><input type="number" id="k" value="7" min="4" max="10"/></div>
+      </div>
+      <div class="hint">GSD sets the ground scale used for every area & length figure.
+        Sentinel-2 ≈ 10 m, Resourcesat LISS-IV ≈ 5.8 m, Cartosat-2 ≈ 0.65 m.</div>
+
+      <button id="run" disabled>Analyse Scene</button>
+      <div id="err"></div>
+
+      <label class="f">Sample scenes</label>
+      <div class="samples" id="samples"></div>
+      <button class="ghost" id="loadpair">Load bi-temporal demo pair →</button>
+    </div>
+  </section>
+
+  <!-- CENTER -->
+  <section class="panel">
+    <div class="phead">② Visual Grounding</div>
+    <div class="tabs" id="tabs"></div>
+    <div class="viewer" id="viewer">
+      <div class="empty">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l4-4 4 4 3-3 7 7"/>
+          <circle cx="15" cy="8" r="1.6"/></svg>
+        <div>Upload a satellite scene or pick a sample to begin.<br/>
+        Segmentation, spectral indices and detections render here.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <section class="panel">
+    <div class="phead">③ Query Assistant</div>
+    <div class="chatwrap">
+      <div class="chat" id="chat">
+        <div class="empty" style="padding:22px 14px">
+          <b style="color:#e6edf7">Ask anything about the scene.</b><br/>
+          Every answer is grounded in measurements computed from the pixels —
+          expand <i>Evidence</i> on any reply to audit the exact numbers and method.
+        </div>
+      </div>
+      <div class="sugg" id="sugg"></div>
+      <div class="askbar">
+        <input type="text" id="q" placeholder="e.g. How much of this scene is water?" disabled/>
+        <button id="send" disabled>Ask</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal"><img id="modalimg"/></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let S = { session:null, images:{}, tab:'landcover', file1:null, file2:null, legend:[], data:null };
+
+const DEFAULT_SUGG = [
+  "Describe this scene",
+  "How much of the area is water?",
+  "Where is the built-up area?",
+  "How many water bodies are there?",
+  "Are there any ships?",
+  "Count the roads",
+  "What is the vegetation cover?",
+  "Is there any cloud cover?"
+];
+const CHANGE_SUGG = ["What changed between the two dates?", "Did vegetation decrease?",
+                     "Has the built-up area expanded?", "Any change in water extent?"];
+
+/* ---------- file inputs ---------- */
+function wire(dropId, inputId, thumbId, slot){
+  const d=$(dropId), i=$(inputId), t=$(thumbId);
+  d.onclick=()=>i.click();
+  d.ondragover=e=>{e.preventDefault();d.classList.add('over')};
+  d.ondragleave=()=>d.classList.remove('over');
+  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');
+    if(e.dataTransfer.files[0]) set(e.dataTransfer.files[0])};
+  i.onchange=()=>{ if(i.files[0]) set(i.files[0]) };
+  function set(f){
+    S[slot]=f; const r=new FileReader();
+    r.onload=e=>{t.src=e.target.result;t.style.display='block'};
+    r.readAsDataURL(f);
+    if(slot==='file1'){ S.sample1=null; $('#run').disabled=false; }
+    else S.sample2=null;
+  }
+}
+wire('#drop1','#f1','#th1','file1');
+wire('#drop2','#f2','#th2','file2');
+
+/* ---------- samples ---------- */
+fetch('/api/samples').then(r=>r.json()).then(d=>{
+  const c=$('#samples');
+  if(!d.samples.length){ c.innerHTML='<div class="hint">No samples bundled.</div>'; return; }
+  d.samples.forEach(s=>{
+    const el=document.createElement('div'); el.className='samp';
+    el.innerHTML=`<img src="${s.url}" alt="${s.title}"/><div>${s.title}</div>`;
+    el.onclick=()=>{ S.sample1=s.name; S.file1=null; S.sample2=null; S.file2=null;
+      $('#th1').src=s.url; $('#th1').style.display='block';
+      $('#th2').style.display='none'; $('#run').disabled=false; run(); };
+    c.appendChild(el);
+  });
+});
+$('#loadpair').onclick=()=>{
+  S.sample1='delta_t1.png'; S.sample2='delta_t2.png'; S.file1=S.file2=null;
+  $('#th1').src='/samples/delta_t1.png'; $('#th1').style.display='block';
+  $('#th2').src='/samples/delta_t2.png'; $('#th2').style.display='block';
+  $('#run').disabled=false; run();
+};
+
+/* ---------- analyse ---------- */
+$('#run').onclick=run;
+async function run(){
+  $('#err').innerHTML=''; $('#run').disabled=true;
+  $('#status').innerHTML='<span class="spin"></span> analysing';
+  $('#viewer').innerHTML='<div class="empty"><span class="spin"></span><br/><br/>'+
+    'Segmenting land cover · computing spectral indices · extracting objects…</div>';
+  try{
+    let res;
+    if(S.sample1){
+      const fd=new FormData(); fd.append('name',S.sample1);
+      if(S.sample2) fd.append('name2',S.sample2);
+      fd.append('gsd',$('#gsd').value); fd.append('k',$('#k').value);
+      res=await fetch('/api/analyze_sample',{method:'POST',body:fd});
+    }else{
+      const fd=new FormData(); fd.append('image',S.file1);
+      if(S.file2) fd.append('image2',S.file2);
+      fd.append('gsd',$('#gsd').value); fd.append('k',$('#k').value);
+      res=await fetch('/api/analyze',{method:'POST',body:fd});
+    }
+    if(!res.ok) throw new Error((await res.json()).detail||'analysis failed');
+    const d=await res.json();
+    S.session=d.session; S.images=d.images; S.legend=d.legend; S.data=d;
+    buildTabs(d); show(d.images.landcover ? 'landcover':'original');
+    renderStats(d);
+    $('#q').disabled=false; $('#send').disabled=false;
+    $('#status').innerHTML='● analysed in '+d.ms+' ms';
+    $('#chat').innerHTML='';
+    addAI(autoBrief(d), null, {intent:'auto-brief',confidence:null});
+    renderSugg(d.has_second);
+  }catch(e){
+    $('#err').innerHTML='<div class="err">'+e.message+'</div>';
+    $('#viewer').innerHTML='<div class="empty">Analysis failed.</div>';
+    $('#status').innerHTML='● error';
+  }
+  $('#run').disabled=false;
+}
+
+function buildTabs(d){
+  const map={original:'Original',landcover:'Land Cover',veg:'Vegetation Index',
+             detections:'Detections',t2:'T2 Scene',change:'Change Map'};
+  const t=$('#tabs'); t.innerHTML='';
+  Object.keys(map).forEach(k=>{
+    if(!d.images[k]) return;
+    const b=document.createElement('div'); b.className='tab'+(k===S.tab?' on':'');
+    b.textContent=map[k]; b.onclick=()=>show(k); b.dataset.k=k; t.appendChild(b);
+  });
+}
+function show(k){
+  if(!S.images[k]) return;
+  S.tab=k;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  $('#viewer').innerHTML='';
+  const img=document.createElement('img'); img.src=S.images[k];
+  img.style.cursor='zoom-in'; img.onclick=()=>openModal(img.src);
+  $('#viewer').appendChild(img);
+}
+function openModal(src){ $('#modalimg').src=src; $('#modal').classList.add('on'); }
+$('#modal').onclick=()=>$('#modal').classList.remove('on');
+
+function renderStats(d){
+  const s=d.scene;
+  let h=`<div class="stats">
+    <div class="st"><div class="v">${s.area_km2.toFixed(2)}</div><div class="l">km² footprint</div></div>
+    <div class="st"><div class="v">${s.gsd}<span style="font-size:11px"> m</span></div><div class="l">GSD</div></div>
+    <div class="st"><div class="v">${d.counts.water_regions}</div><div class="l">water bodies</div></div>
+    <div class="st"><div class="v">${d.counts.linear}</div><div class="l">linear structs</div></div>
+  </div>`;
+  h+=`<div class="phead" style="padding:0 0 8px;border:0">Land-cover composition</div><div class="legend">`;
+  d.legend.forEach(l=>{
+    h+=`<div><div class="lg"><span class="sw" style="background:${l.color}"></span>
+      <span class="nm">${l.label}</span>
+      <span class="vl">${(l.fraction*100).toFixed(1)}% · ${l.area_km2.toFixed(2)} km²</span></div>
+      <div class="bar"><i style="width:${(l.fraction*100).toFixed(1)}%;background:${l.color}"></i></div></div>`;
+  });
+  h+='</div>';
+  h+=`<div class="hint" style="margin-top:12px">Spectral basis: <b>${s.veg_index}</b> ·
+      <b>${s.water_index}</b>${s.has_nir?' · NIR band present':' · no NIR band (RGB proxies)'}<br/>
+      Analysis raster ${s.analysis_width}×${s.analysis_height} px from source ${s.width}×${s.height} px.</div>`;
+  if(d.change){
+    h+=`<div class="phead" style="padding:14px 0 8px;border:0">Change detection</div>
+        <div class="hint">Changed area: <b style="color:var(--warn)">${(d.change.changed_fraction*100).toFixed(1)}%</b><br/>
+        Co-registration: ${d.change.registration}</div>`;
+  }
+  // append into left panel below controls
+  let box=$('#statsbox');
+  if(!box){ box=document.createElement('div'); box.id='statsbox'; box.style.marginTop='16px';
+    document.querySelector('section.panel .pbody').appendChild(box); }
+  box.innerHTML=h;
+}
+
+function autoBrief(d){
+  const top=d.legend.slice(0,3).map(l=>`${l.label} ${(l.fraction*100).toFixed(1)}%`).join(', ');
+  let t=`**Scene ingested and analysed in ${d.ms} ms.**\n\n`+
+    `Footprint **${d.scene.area_km2.toFixed(2)} km²** at ${d.scene.gsd} m GSD. `+
+    `Dominant cover: ${top}.\n\nDetected: ${d.counts.water_regions} water bodies, `+
+    `${d.counts.vessels} probable vessels, ${d.counts.linear} linear structures, `+
+    `${d.counts.bright_targets} bright targets.`;
+  if(d.change) t+=`\n\n**Bi-temporal pair loaded** — ${(d.change.changed_fraction*100).toFixed(1)}% of the scene changed. Ask me what changed.`;
+  t+=`\n\nAsk a question below, or tap a suggestion.`;
+  return t;
+}
+
+function renderSugg(hasChange){
+  const c=$('#sugg'); c.innerHTML='';
+  const list=(hasChange?CHANGE_SUGG:[]).concat(DEFAULT_SUGG).slice(0,8);
+  list.forEach(s=>{ const b=document.createElement('div'); b.className='sg'; b.textContent=s;
+    b.onclick=()=>{ $('#q').value=s; ask(); }; c.appendChild(b); });
+}
+
+/* ---------- chat ---------- */
+function md(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/^- (.+)$/gm,'• $1')
+    .replace(/\n/g,'<br/>');
+}
+function addMe(t){
+  const d=document.createElement('div'); d.className='msg me'; d.textContent=t;
+  $('#chat').appendChild(d); $('#chat').scrollTop=1e9;
+}
+function addAI(text, ov, m){
+  const d=document.createElement('div'); d.className='msg ai';
+  let h=md(text);
+  h+='<div class="meta">';
+  if(m.intent) h+=`<span class="pill i">intent: ${m.intent}</span>`;
+  if(m.entities&&m.entities.length) h+=`<span class="pill">entities: ${m.entities.join(', ')}</span>`;
+  if(m.objects&&m.objects.length) h+=`<span class="pill">objects: ${m.objects.join(', ')}</span>`;
+  if(m.confidence!=null){
+    const c=m.confidence, cls=c>=0.7?'c':(c>=0.5?'':'w');
+    h+=`<span class="pill ${cls}">confidence ${(c*100).toFixed(0)}%</span>`;
+  }
+  if(m.ms!=null) h+=`<span class="pill">${m.ms} ms</span>`;
+  h+='</div>';
+  if(m.evidence&&m.evidence.length){
+    h+='<details class="ev"><summary>▸ Evidence — how this was computed</summary>';
+    m.evidence.forEach(e=>{
+      let v=e.value;
+      if(typeof v==='object') v=JSON.stringify(v);
+      h+=`<div class="evrow"><span class="k">${e.metric}</span><span>${v}</span>
+          <span class="m">${e.method}</span></div>`;
+    });
+    h+='</details>';
+  }
+  if(ov) h+=`<img class="ovthumb" src="${ov}"/>`;
+  d.innerHTML=h;
+  if(ov) d.querySelector('.ovthumb').onclick=()=>openModal(ov);
+  $('#chat').appendChild(d); $('#chat').scrollTop=1e9;
+}
+
+$('#send').onclick=ask;
+$('#q').onkeydown=e=>{ if(e.key==='Enter') ask(); };
+async function ask(){
+  const q=$('#q').value.trim(); if(!q||!S.session) return;
+  addMe(q); $('#q').value=''; $('#send').disabled=true;
+  const load=document.createElement('div'); load.className='msg ai';
+  load.innerHTML='<span class="spin"></span> reasoning over scene evidence…';
+  $('#chat').appendChild(load); $('#chat').scrollTop=1e9;
+  try{
+    const r=await fetch('/api/query',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({session:S.session,query:q})});
+    const d=await r.json();
+    load.remove();
+    if(!r.ok){ addAI('⚠️ '+(d.detail||'query failed'),null,{intent:'error'}); }
+    else{
+      addAI(d.answer,d.overlay_image,{intent:d.intent,entities:d.entities,objects:d.objects,
+            confidence:d.confidence,evidence:d.evidence,ms:d.ms});
+      if(d.overlay_image){ S.images.answer=d.overlay_image;
+        if(!document.querySelector('.tab[data-k="answer"]')){
+          const b=document.createElement('div'); b.className='tab'; b.dataset.k='answer';
+          b.textContent='Query Overlay'; b.onclick=()=>show('answer'); $('#tabs').appendChild(b);
+        }
+        show('answer');
+      }
+    }
+  }catch(e){ load.remove(); addAI('⚠️ '+e.message,null,{intent:'error'}); }
+  $('#send').disabled=false; $('#q').focus();
+}
+</script>
+</body>
+</html>
