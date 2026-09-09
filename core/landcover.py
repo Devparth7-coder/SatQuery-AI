@@ -53,6 +53,9 @@ class LandCover:
     k: int
     kmeans: object = None            # fitted classifier (reused for T2)
     ctx: dict = None                 # scene context stats used for scoring
+    uncertainty: Optional[np.ndarray] = None  # v2: HxW float [0,1]
+    quality: Optional[dict] = None             # v2: quality indicators
+    adaptive_k_used: bool = False              # v2: k was auto-selected
 
 
 def _score_signature(s: dict, has_nir: bool, ctx: Dict[str, float]) -> Dict[str, float]:
@@ -241,6 +244,12 @@ def segment(scene: Scene, fs: FeatureStack, k: int = 7, seed: int = 42,
                    areas_km2=areas, cluster_report=report, k=k)
     lc.kmeans = km
     lc.ctx = ctx
+    try:
+        lc.uncertainty = _uncertainty_map(X, km, raw)
+        lc.quality = quality_indicators(lc, has_nir)
+    except Exception:
+        lc.uncertainty = None
+        lc.quality = None
     return lc
 
 
@@ -258,3 +267,82 @@ def class_mask(lc: LandCover, names: List[str]) -> np.ndarray:
         if nme in CLASSES:
             m |= lc.label_map == CLASSES.index(nme)
     return m
+
+
+# --------------------------------------------------------------------------- #
+# v2: adaptive k, uncertainty layer, quality indicators (additive)
+# --------------------------------------------------------------------------- #
+def suggest_k(fs, k_min: int = 4, k_max: int = 10) -> int:
+    """Deterministic adaptive cluster count from scene complexity.
+
+    Heuristic (documented, no hidden magic): quantize colour to 3 bits per
+    channel over a fixed-stride sample and count distinct signatures, then
+    combine with texture variability. Colourful, textured scenes get more
+    clusters; flat scenes get fewer. Always within [k_min, k_max].
+    """
+    h, w = fs.r.shape
+    stride = max(1, int((h * w / 40000) ** 0.5))
+    r = (fs.r[::stride, ::stride] * 7.0).astype(np.int32)
+    g = (fs.g[::stride, ::stride] * 7.0).astype(np.int32)
+    b = (fs.b[::stride, ::stride] * 7.0).astype(np.int32)
+    codes = (r * 64 + g * 8 + b).ravel()
+    uniq = float(len(np.unique(codes)))
+    tex = float(fs.texture.std())
+    color_term = min(uniq, 4000.0) / 4000.0 * 3.0
+    tex_term = min(tex, 0.15) / 0.15 * 3.0
+    k = int(round(4 + color_term + tex_term))
+    return int(max(k_min, min(k_max, k)))
+
+
+def _uncertainty_map(X: np.ndarray, km, raw: np.ndarray) -> np.ndarray:
+    """Per-pixel classification uncertainty in [0,1].
+
+    Normalised distance to the assigned cluster centroid in the
+    standardised feature space (p99 normalisation). Far-from-centroid
+    pixels are the ambiguous ones — e.g. mixed pixels at class borders.
+    """
+    labels = km.predict(X)
+    centers = np.asarray(km.cluster_centers_, dtype=np.float32)
+    d = np.sqrt(((X - centers[labels]) ** 2).sum(axis=1))
+    p99 = float(np.percentile(d, 99)) or 1.0
+    return np.clip(d / p99, 0, 1).reshape(raw.shape).astype(np.float32)
+
+
+def quality_indicators(lc: LandCover, has_nir: bool) -> dict:
+    """Transparent classification-quality assessment.
+
+    Starts at HIGH and downgrades one level per fired rule
+    (HIGH -> MODERATE -> LOW). INSUFFICIENT is reserved for scenes that
+    are mostly obscured. Every fired rule is reported — the label is
+    never assigned without its justification.
+    """
+    rep = lc.cluster_report or []
+    tot = sum(r.get("fraction", 0) for r in rep) or 1e-6
+    mean_conf = sum(r.get("confidence", 0.5) * r.get("fraction", 0)
+                    for r in rep) / tot
+    min_frac = min((r.get("fraction", 0) for r in rep), default=0.0)
+    obscured = lc.fractions.get("cloud_snow", 0.0) + lc.fractions.get("shadow", 0.0)
+
+    label = "HIGH"
+    rules: List[str] = []
+
+    def _down(reason: str) -> None:
+        nonlocal label
+        rules.append(reason)
+        label = {"HIGH": "MODERATE", "MODERATE": "LOW", "LOW": "LOW"}[label]
+
+    if not has_nir:
+        _down("no NIR band: vegetation/water rest on RGB proxies")
+    if obscured > 0.25:
+        _down(f"{obscured*100:.1f}% of pixels are cloud/shadow-obscured")
+    if mean_conf < 0.55:
+        _down(f"low mean cluster confidence ({mean_conf:.2f})")
+    if obscured > 0.60:
+        label = "INSUFFICIENT"
+        rules.append("majority of scene obscured — classification unreliable")
+    return {"label": label, "mean_confidence": round(float(mean_conf), 3),
+            "min_cluster_fraction": round(float(min_frac), 4),
+            "obscured_fraction": round(float(obscured), 4),
+            "rules": rules,
+            "note": "Rule-derived classes are algorithmically inferred, "
+                    "not ground-truth validated."}

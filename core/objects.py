@@ -179,3 +179,73 @@ def summarize(scene: Scene, fs: FeatureStack, lc: LandCover) -> Dict:
         "linear": lines,
         "urban_edge_density": urban_density,
     }
+
+
+# --------------------------------------------------------------------------- #
+# v2: unified object schema (additive — Detection dataclass unchanged)
+# --------------------------------------------------------------------------- #
+# Every detection is exposed to the API/UI/report layers through this schema:
+#   {id, type, bbox[x,y,w,h], centroid[x,y], area_px, area_m2,
+#    confidence, source_method, evidence{...}}
+# `confidence` for classical detectors is a *heuristic score* (contrast /
+# size cues), NOT a calibrated model probability — the note is surfaced
+# wherever scores are shown.
+
+SOURCE_METHOD = {
+    "vessel": "median-background contrast blob ∩ dilated water mask",
+    "bright_target": "median-background contrast blob (99.3rd percentile)",
+    "linear": "probabilistic Hough transform on Canny edges",
+    "region:water": "connected components of the water class mask",
+    "region:dense_vegetation": "connected components of the vegetation mask",
+    "region:built_up": "connected components of the built-up mask",
+}
+
+CONFIDENCE_NOTE = ("Heuristic score from contrast/size cues, not a calibrated "
+                   "model probability.")
+
+
+def detection_to_dict(d: Detection, id: str) -> dict:
+    return {
+        "id": id,
+        "type": d.kind,
+        "label": d.label,
+        "bbox": [int(v) for v in d.bbox],
+        "centroid": [round(float(d.centroid[0]), 1), round(float(d.centroid[1]), 1)],
+        "area_px": int(d.area_px),
+        "area_m2": round(float(d.area_m2), 1),
+        "confidence": round(float(d.score), 3),
+        "confidence_note": CONFIDENCE_NOTE,
+        "source_method": SOURCE_METHOD.get(d.kind, "classical detector"),
+        "evidence": d.extra,
+    }
+
+
+def detections_table(objs: dict) -> list:
+    """Flatten all detector outputs into unified-schema rows (stable ids)."""
+    rows: list = []
+    n = 0
+    for key in ("vessels", "bright_targets", "linear", "water_regions",
+                "veg_regions", "built_regions"):
+        for d in objs.get(key, []) or []:
+            n += 1
+            d.kind = d.kind  # keep kind verbatim
+            rows.append(detection_to_dict(d, f"D{n:03d}"))
+    return rows
+
+
+def size_statistics(dets: list) -> dict:
+    """Measured size distribution for one detector family (honest n)."""
+    import numpy as _np
+    if not dets:
+        return {"n": 0, "note": "No detections in this family."}
+    lengths = [float(d.extra.get("length_m", 0) or 0) for d in dets]
+    lengths = [L for L in lengths if L > 0]
+    areas = [float(d.area_m2) for d in dets]
+    out = {"n": len(dets),
+           "area_m2": {"min": round(min(areas), 1), "max": round(max(areas), 1),
+                       "median": round(float(_np.median(areas)), 1)}}
+    if lengths:
+        out["length_m"] = {"min": round(min(lengths), 1),
+                           "max": round(max(lengths), 1),
+                           "median": round(float(_np.median(lengths)), 1)}
+    return out

@@ -1,0 +1,13 @@
+# SatQuery AI v2 — pinned-ish runtime + test dependencies (all offline-capable)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
+opencv-python>=4.9
+pillow>=10.2
+scikit-learn>=1.4
+scikit-image>=0.22
+scipy>=1.12
+# tests only
+httpx>=0.27
+pytest>=8.0

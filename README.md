@@ -1,105 +1,140 @@
-# SatQuery AI
+# SatQuery AI v2
 
-**An Interactive Vision-Language Assistant for Multimodal Remote Sensing Image Analysis through Text Queries**
+**Ask Questions. Explore Earth.**
 
-ISRO · Space Technology · Software
-
----
-
-## What it is
-
-Upload a satellite scene, ask questions in plain English, get answers that are
-**measured from the pixels** — each with a visual overlay showing exactly where
-the answer came from, and an auditable evidence trail showing how each number
-was computed.
+An evidence-first intelligence platform for understanding satellite imagery.
+Upload a scene, ask in plain English, and get answers measured from the
+pixels — each with visual proof, methodology, uncertainty and an auditable
+evidence trail.
 
 ```
 "How much of the area is water?"      → 58.8% · 62.9 km² + highlighted water mask
-"How many ships are there?"           → 27 vessels, 55–465 m + ringed detections
-"Where is the built-up area?"         → centroid, extent, largest patch + overlay
-"What changed between the two dates?" → per-class deltas + transition matrix
+"How many ships are there?"           → 49 vessels + ringed detections + lengths
+"What is the NDVI here?"              → honest unavailable state on RGB-only input
+"What changed between the two dates?" → 3.67% changed · severity MEDIUM + hotspots
+"Show the evidence behind this."      → pipeline trace + evidence IDs + methods
 ```
 
-## Run
+## Why it exists
+
+Earth-observation answers must be **measured, not generated**. SatQuery keeps
+deterministic remote-sensing code as the sole source of numbers; natural
+language only plans, interprets and explains — and every claim cites evidence.
+
+## Capabilities
+
+- **Ingestion 2.0** — PNG/JPG/TIFF/WebP/BMP + multi-band; format, dims, bands,
+  bit depth, CRS-or-`Metadata unavailable`, checksum, sensor mapping report.
+- **Sensor-aware processing** — band-mapping abstraction; verified generic
+  RGB/RGB+NIR today, Sentinel-2/Landsat/Planet/Cartosat/Resourcesat tables
+  reserved (honestly marked planned).
+- **Spectral engine** — NDVI/NDWI/SAVI/EVI/GNDVI with NIR; VARI/ExG/water-proxy
+  on RGB; MNDWI/NDBI unavailable-without-SWIR states; formula + stats +
+  histogram per index.
+- **Land-cover intelligence** — k-means + physics rules, adaptive k, class
+  proportions/areas, cluster signatures, uncertainty layer, transparent
+  quality label (HIGH→INSUFFICIENT with fired rules).
+- **Object intelligence** — water/vegetation/built regions, vessels,
+  bright targets, linear structures in a unified schema with heuristic-score
+  honesty notes.
+- **Temporal intelligence** — ORB/RANSAC registration, histogram matching,
+  CVA+Otsu, transition matrix, severity (LOW/MEDIUM/HIGH), hotspots, quality.
+- **Map workspace** — pan/zoom viewer, layer toggles + opacity, legend,
+  image-space coordinates, pixel inspector, measure/box/marker tools,
+  before/after slider. Non-georeferenced inputs are labelled image-space.
+- **Query planner 2.0** — structured intents (scene summary, land cover,
+  spectral index, object count/location, temporal change, comparison, area,
+  spatial statistics, evidence explanation) with visible
+  QUERY → INTERPRETATION → TOOLS → EVIDENCE → ANSWER traces.
+- **Grounded AI layer** — offline deterministic composer by default; optional
+  provider interface (Ollama stub). Never invents measurements.
+- **Evidence graph** — every answer traces to `E#` items (type/source/method/
+  value/confidence/visualization).
+- **Reports / history / reproducibility** — self-contained HTML reports,
+  persistent versioned records (open/duplicate/export/delete) and one-click
+  re-execution from stored inputs + checksums + seed 42.
+- **Security + tests** — hardened uploads, no stack-trace leaks, rate limits,
+  8 test suites (unit/integration/regression), live benchmarks.
+
+## Quick start
 
 ```bash
-pip install fastapi "uvicorn[standard]" python-multipart numpy opencv-python pillow scikit-learn scikit-image scipy
-cd satquery
-python3 -m uvicorn app:app --host 0.0.0.0 --port 8000
+pip install -r requirements.txt
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Open `http://localhost:8000`. Click any sample scene, or drop your own image.
-For change detection, click **Load bi-temporal demo pair**.
+Open `http://localhost:8000`. Click **Explore Demo** for the ground-truthed
+bi-temporal pair, or upload your own scene. Set GSD correctly
+(Sentinel-2 ≈ 10 m, LISS-IV ≈ 5.8 m, Cartosat-2 ≈ 0.65 m).
+
+## Demo workflow
+
+1. **Explore Demo** → loads `delta_t1/t2` (known edits: clearings, urban
+   block, reservoir, 6/−4 px shift).
+2. Ask *"What changed between the two dates?"* → 3.67% changed, severity,
+   transitions, hotspots.
+3. Open **Change Detection** → inspect the change map + hotspot table.
+4. Ask *"Show the evidence behind this result"* (or toggle Explain mode).
+5. **Reports → Generate Report** → download/print the audit-ready HTML.
+6. **History → Reproduce** to re-run deterministically.
 
 ## Architecture
 
 ```
-Text query ──► NLU (intent + entity parsing)
-                     │
-Scene ──► Features ──► Land-cover segmentation ──► Scene graph ──► Evidence retrieval
-          (indices)    (k-means + physics rules)    (objects)            │
-                                                                Grounded answer
-                                                                + overlay + citations
+Text query → Planner (intent/target/operation/evidence/tools)
+Scene → Features → Land cover → Scene graph → Evidence → Grounded answer + overlay
 ```
 
-**No pretrained weights, no API keys, fully offline.** Every figure is derived
-from the image on device.
+No pretrained weights, no API keys, fully offline. See `docs/ARCHITECTURE.md`.
 
-| Layer | File | What it does |
-|---|---|---|
-| Spectral features | `core/features.py` | NDVI/NDWI with NIR; VARI + water proxies for RGB. Texture, edge density, excess-green |
-| Land cover | `core/landcover.py` | MiniBatch k-means over spectral+textural space, then rule-based class assignment from cluster signatures |
-| Objects | `core/objects.py` | Connected-component regions, top-hat bright-target detection (vessels), Hough linear structures |
-| Change | `core/change.py` | ORB/RANSAC co-registration, histogram matching, change vector analysis + Otsu, class transition matrix |
-| Query engine | `core/query.py` | Intent/entity parsing → evidence retrieval → deterministic language realisation |
-| Grounding | `core/render.py` | Class overlays, heatmaps, detection boxes |
+| Layer | File |
+|---|---|
+| Ingestion/validation/sensors | `core/ingestion.py`, `core/validation.py`, `core/sensors.py` |
+| Spectral + stats | `core/features.py` |
+| Land cover + quality | `core/landcover.py` |
+| Objects | `core/objects.py` |
+| Change + severity | `core/change.py` |
+| Query planner | `core/query.py` |
+| Evidence | `core/evidence.py` |
+| AI reasoning | `core/ai_reasoning.py` |
+| History/reproduce | `core/history.py` |
+| Reports | `core/report.py` |
+| Rendering | `core/render.py` |
 
-### Why clustering + rules, not a black box
+## API
 
-k-means finds what is *actually* in this image; the rule layer names it using
-physical spectral behaviour. This means **no training data is required**, the
-system generalises to any sensor, and — critically for operational use — every
-label is explainable. The `clusters` field in `/api/analyze` returns each
-cluster's mean signature and the scores that produced its label.
+v1 routes preserved (`/api/analyze`, `/api/query`, `/api/analyze_sample`,
+`/api/samples`, `/api/health`); v2 adds `/api/version`, `/api/explain`,
+`/api/indices`, `/api/objects`, `/api/evidence`, `/api/quality`,
+`/api/inspect`, `/api/report`, `/api/history/*`, `/api/benchmark`,
+`/api/sensors`, `/api/providers`. Details: `docs/API.md`.
 
 ## Validation
 
-The bi-temporal demo pair is **synthetically edited from a real Sentinel-2 scene**,
-so change detection is checked against known ground truth (`samples/delta_truth.json`):
+Ground-truthed demo pair (`samples/delta_truth.json`):
 
 | Metric | Truth | Detected |
 |---|---|---|
 | Changed area | 4.47% | 3.67% |
-| Applied shift | +6, −4 px | recovered 5.2 px via ORB+RANSAC |
+| Applied shift | +6, −4 px (‖·‖≈7.2) | 5.2 px via ORB+RANSAC |
 | Dominant transition | vegetation → bare | vegetation → bare, 1.17 km² |
 
-All five injected edits (3 clearings, 1 urban block, 1 reservoir) are localised
-with no false positives elsewhere in the scene.
+Run `python -m pytest tests/ -q` and `POST /api/benchmark` for live numbers.
 
-## Known limits (deliberately surfaced, not hidden)
+## Known limits
 
-- **RGB-only input**: turbid/sediment-laden water is red-dominant and can be
-  confused with bare soil. The assistant states this in its own answers. Supply
-  a 4-band product for true NDVI/NDWI separation.
-- Vessel detection is contrast-based: low-contrast or moored craft may be missed,
-  and bright wave crests can false-positive.
-- Areas assume the GSD you enter — set it correctly (Sentinel-2 ≈ 10 m,
-  LISS-IV ≈ 5.8 m, Cartosat-2 ≈ 0.65 m).
-- Class labels are physics-derived, not survey-grade cadastral classes.
+RGB-only proxies, inferred (not survey-grade) classes, classical detectors,
+GSD-dependent areas, image-space coordinates without CRS. Full list:
+`docs/LIMITATIONS.md`.
 
-## API
+## Docs
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/analyze` | multipart: `image`, optional `image2`, `gsd`, `k` → session + overlays + stats |
-| `POST /api/query` | `{session, query}` → answer, evidence[], overlay image, confidence |
-| `POST /api/analyze_sample` | analyse a bundled sample by name |
-| `GET /api/samples` | list bundled scenes |
-| `GET /api/health` | liveness |
+`docs/ARCHITECTURE.md` · `docs/API.md` · `docs/ALGORITHMS.md` ·
+`docs/EVIDENCE.md` · `docs/DEVELOPMENT.md` · `docs/SECURITY.md` ·
+`docs/LIMITATIONS.md`
 
-## Extending to a true VLM
+## Roadmap (extension points ready)
 
-`core/query.py` is a drop-in seam. The scene graph (land-cover fractions,
-detections, indices) is already a structured text-serialisable context — pass it
-as grounding context to a Qwen-VL / LLaVA / Gemini call for free-form phrasing
-while keeping the numbers authoritative and hallucination-free.
+STAC/Sentinel-2/Landsat readers (`sensors.py` registry), GeoJSON/GeoTIFF
+export, cloud masking, MapLibre/Leaflet GIS layer, VLM adapters
+(`VisionModelProvider`), RAG over RS docs, agentic orchestration.

@@ -1,0 +1,1 @@
+"""SatQuery AI — test suite."""
