@@ -29,6 +29,9 @@ class ChangeResult:
     registration: str
     lc1: LandCover
     lc2: LandCover
+    severity: str = "UNKNOWN"          # v2: LOW / MEDIUM / HIGH
+    hotspots: Optional[list] = None    # v2: top change regions
+    quality: Optional[dict] = None     # v2: registration/radiometry quality
 
 
 def _register(ref: np.ndarray, mov: np.ndarray) -> tuple:
@@ -146,6 +149,89 @@ def detect(s1: Scene, s2: Scene, k: int = 7,
     deltas = {c: round(lc2.areas_km2.get(c, 0) - lc1.areas_km2.get(c, 0), 4)
               for c in CLASSES}
 
+    changed_fraction = float(cm.mean())
+    reg_quality = _registration_quality(method)
+    severity = _severity_for(changed_fraction, reg_quality)
+    hotspots = _hotspots(cm, s1, mag_n, top=5)
+    quality = {"registration": reg_quality,
+               "histogram_matched": "histogram-matched" in method,
+               "threshold_note": "Otsu on CVA magnitude (floor 0.18) + "
+                                 "morphological open/close cleanup"}
+
     return ChangeResult(magnitude=mag_n, change_mask=cm,
-                        changed_fraction=float(cm.mean()), transitions=trans[:14],
-                        deltas=deltas, registration=method, lc1=lc1, lc2=lc2)
+                        changed_fraction=changed_fraction, transitions=trans[:14],
+                        deltas=deltas, registration=method, lc1=lc1, lc2=lc2,
+                        severity=severity, hotspots=hotspots, quality=quality)
+
+
+# --------------------------------------------------------------------------- #
+# v2: severity, hotspots, registration quality (additive)
+# --------------------------------------------------------------------------- #
+def _registration_quality(method: str) -> dict:
+    """Transparent registration assessment parsed from the method record."""
+    import re as _re
+    m = _re.search(r"(\d+)\s+inliers?,\s*([\d.]+)\s*px", method or "")
+    inliers = int(m.group(1)) if m else 0
+    shift = float(m.group(2)) if m else 0.0
+    if "ORB+RANSAC" in (method or ""):
+        quality = "HIGH" if inliers >= 50 else ("MODERATE" if inliers >= 10 else "LOW")
+        kind = "feature-based (ORB+RANSAC affine)"
+    elif "ECC" in (method or ""):
+        quality, kind = "LOW", "intensity-based (ECC translation fallback)"
+    else:
+        quality, kind = "FAILED", "none (resampled only)"
+    return {"kind": kind, "inliers": inliers, "shift_px_corrected": round(shift, 1),
+            "quality": quality,
+            "note": "HIGH>=50 inliers, MODERATE>=10, LOW=ECC fallback, "
+                    "FAILED=no alignment found."}
+
+
+def _severity_for(changed_fraction: float, reg: dict) -> str:
+    """LOW / MEDIUM / HIGH from measured change + registration gate.
+
+    Thresholds come from core/config.py. A HIGH label is gated to MEDIUM
+    when registration failed, because unaligned pixels fabricate change.
+    """
+    from . import config as _cfg
+    f = float(changed_fraction)
+    sev = ("LOW" if f < _cfg.CHANGE_SEVERITY_LOW
+           else "HIGH" if f >= _cfg.CHANGE_SEVERITY_HIGH else "MEDIUM")
+    if sev == "HIGH" and reg.get("quality") in ("LOW", "FAILED"):
+        sev = "MEDIUM"
+    return sev
+
+
+def severity_reason(changed_fraction: float, reg: dict) -> str:
+    from . import config as _cfg
+    base = (f"{changed_fraction*100:.2f}% changed vs thresholds "
+            f"LOW<{_cfg.CHANGE_SEVERITY_LOW*100:g}% / "
+            f"HIGH>={_cfg.CHANGE_SEVERITY_HIGH*100:g}%")
+    if reg.get("quality") in ("LOW", "FAILED"):
+        base += f"; capped because registration quality is {reg.get('quality')}"
+    else:
+        base += f"; registration quality {reg.get('quality')} ({reg.get('inliers',0)} inliers)"
+    return base + "."
+
+
+def _hotspots(cm: np.ndarray, s1: Scene, mag: np.ndarray, top: int = 5) -> list:
+    """Largest connected change regions with honest per-hotspot severity."""
+    num, lab, stats, cent = cv2.connectedComponentsWithStats(cm.astype(np.uint8), 8)
+    px_km2 = s1.px_area_m2() / 1e6
+    p50 = float(np.percentile(mag[cm], 50)) if cm.any() else 0.0
+    p80 = float(np.percentile(mag[cm], 80)) if cm.any() else 0.0
+    out = []
+    for i in range(1, num):
+        a = int(stats[i, cv2.CC_STAT_AREA])
+        if a < 40:
+            continue
+        x, y = int(stats[i, cv2.CC_STAT_LEFT]), int(stats[i, cv2.CC_STAT_TOP])
+        w, h = int(stats[i, cv2.CC_STAT_WIDTH]), int(stats[i, cv2.CC_STAT_HEIGHT])
+        mean_mag = float(mag[lab == i].mean()) if (lab == i).any() else 0.0
+        sev = "HIGH" if mean_mag >= p80 else ("MEDIUM" if mean_mag >= p50 else "LOW")
+        out.append({"bbox": [x, y, w, h],
+                    "centroid": [round(float(cent[i][0]), 1), round(float(cent[i][1]), 1)],
+                    "area_px": a, "area_km2": round(a * px_km2, 4),
+                    "mean_magnitude": round(mean_mag, 3),
+                    "severity": sev})
+    out.sort(key=lambda d: -d["area_px"])
+    return out[:top]

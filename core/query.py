@@ -98,6 +98,11 @@ class QueryPlan:
     objects: List[str] = field(default_factory=list)
     superlative: bool = False
     raw: str = ""
+    # v2 structured-planner fields (populated by parse_query)
+    target: str = "scene"
+    operation: str = "describe"
+    required_evidence: List[str] = field(default_factory=list)
+    tools: List[str] = field(default_factory=list)
 
 
 def parse_query(q: str) -> QueryPlan:
@@ -135,8 +140,17 @@ def parse_query(q: str) -> QueryPlan:
     if re.search(r"\bwhere\b|\bshow me\b|\bhighlight\b", ql) and intent != "change":
         intent = "locate"
 
+    # ---- v2 taxonomy mapping + structured plan enrichment ----
+    intent = _to_v2_intent(intent, ql, entities, objects)
+    target = entities[0] if entities else (objects[0] if objects else "scene")
+    operation = _OPERATION_FOR.get(intent, "describe")
+    required_evidence = list(_EVIDENCE_FOR.get(intent, ["land_cover"]))
+    tools = list(_TOOLS_FOR.get(intent, ["landcover.segment"]))
+
     return QueryPlan(intent=intent, entities=entities, objects=objects,
-                     superlative=any(s in ql for s in SUPERLATIVE), raw=q)
+                     superlative=any(s in ql for s in SUPERLATIVE), raw=q,
+                     target=target, operation=operation,
+                     required_evidence=required_evidence, tools=tools)
 
 
 # --------------------------------------------------------------------------- #
@@ -187,6 +201,9 @@ def answer(plan: QueryPlan, analysis: dict, change: Optional[dict] = None) -> di
 
     def ev_add(name, value, method):
         ev.append({"metric": name, "value": value, "method": method})
+
+    # v2: the planner emits the v2 intent taxonomy; accept v1 names too.
+    plan.intent = _ALIASES.get(plan.intent, plan.intent)
 
     # ---------------- CHANGE ----------------
     if plan.intent == "change":
@@ -251,6 +268,14 @@ def answer(plan: QueryPlan, analysis: dict, change: Optional[dict] = None) -> di
         if flags:
             lines.append("\n" + "\n".join(flags))
 
+        try:
+            from .change import severity_reason as _sev_reason
+            _reg = ((getattr(cr, "quality", None) or {}).get("registration", {})
+                    if hasattr(cr, "quality") else {})
+            lines.append(f"\n**Change severity: {getattr(cr, 'severity', 'UNKNOWN')}**"
+                         f" — {_sev_reason(cr.changed_fraction, _reg)}")
+        except Exception:
+            pass
         text = "\n".join(lines)
         overlay = {"type": "change"}
         conf = 0.78 if scene.has_nir else 0.71
@@ -437,6 +462,116 @@ def answer(plan: QueryPlan, analysis: dict, change: Optional[dict] = None) -> di
             overlay = {"type": "class", "classes": targets}
             conf = _confidence_for(analysis, targets)
 
+    # ---------------- SPECTRAL INDEX ----------------
+    elif plan.intent == "spectral_index":
+        from .features import compute_all_indices
+        indices = compute_all_indices(scene, fs)
+        avail = [v for v in indices.values() if v.available]
+        unav = [v for v in indices.values() if not v.available]
+        lines = [f"**Spectral indices** (basis: {fs.veg_index_name} + "
+                 f"{fs.water_index_name}).", ""]
+        for v in avail:
+            s = v.stats or {}
+            lines.append(f"- **{v.name}** `{v.formula}` — mean {s.get('mean', '—')}, "
+                         f"median {s.get('median', '—')}, range "
+                         f"[{s.get('min', '—')}, {s.get('max', '—')}], "
+                         f"std {s.get('std', '—')}")
+            ev_add(f"{v.name.lower()}_mean", s.get("mean"),
+                   f"{v.formula} over all analysis pixels")
+        if unav:
+            lines.append("")
+            lines.append("**Unavailable (required bands missing — "
+                         "no substitution made):**")
+            for v in unav:
+                lines.append(f"- {v.name}: {v.reason}")
+        text = "\n".join(lines)
+        overlay = {"type": "landcover"}
+        conf = 0.85 if scene.has_nir else 0.70
+
+    # ---------------- SPATIAL STATISTICS ----------------
+    elif plan.intent == "spatial_statistics":
+        from .features import spatial_statistics
+        st = spatial_statistics(fs)
+        lines = ["**Spatial statistics (measured over the analysis raster):**", ""]
+        for key in ("brightness", "saturation", "texture", "edge_density"):
+            s = st.get(key, {})
+            lines.append(f"- {key}: mean {s.get('mean', '—')}, "
+                         f"std {s.get('std', '—')}, range "
+                         f"[{s.get('min', '—')}, {s.get('max', '—')}]")
+            ev_add(f"{key}_mean", s.get("mean"), "scene-wide pixel statistics")
+        interp = st.get("interpretation", {})
+        lines.append("")
+        lines.append(f"Contrast: **{interp.get('contrast', '—')}**. "
+                     f"{interp.get('note', '')}")
+        text = "\n".join(lines)
+        overlay = {"type": "landcover"}
+        conf = 0.80
+
+    # ---------------- LAND COVER ----------------
+    elif plan.intent == "land_cover":
+        ranked = _rank_classes(lc)
+        lines = ["**Land-cover composition** (algorithmically inferred — "
+                 "not ground-truth validated):", ""]
+        for c, f in ranked:
+            if f <= 0.0005:
+                continue
+            lines.append(f"- **{CLASS_LABELS[c]}**: {_pct(f)} · "
+                         f"{_fmt_area(lc.areas_km2[c])}")
+            ev_add(f"{c}_fraction", round(f, 4),
+                   "k-means cluster → rule-based class assignment")
+        q = getattr(lc, "quality", None) or {}
+        if q:
+            lines.append("")
+            lines.append(f"Classification quality: **{q.get('label', '—')}** "
+                         f"(mean confidence {q.get('mean_confidence', '—')}).")
+            for r in q.get("rules", []):
+                lines.append(f"  - {r}")
+        text = "\n".join(lines)
+        overlay = {"type": "landcover"}
+        conf = float(q.get("mean_confidence", 0.6)) if q else 0.6
+
+    # ---------------- COMPARISON ----------------
+    elif plan.intent == "comparison":
+        if not change:
+            return {"answer": "I need a **second image** of the same area for a "
+                              "side-by-side comparison. Load a 'Time 2' scene and "
+                              "re-ask.",
+                    "intent": "comparison", "evidence": [], "overlay": {"type": "none"},
+                    "confidence": 0.0, "needs": "second_image"}
+        cr = change["result"]
+        lines = ["**Side-by-side class comparison (T1 → T2**, same classifier "
+                 "on both dates):", ""]
+        for c in CLASSES:
+            a1 = cr.lc1.areas_km2.get(c, 0)
+            a2 = cr.lc2.areas_km2.get(c, 0)
+            if abs(a2 - a1) < 1e-4 and a1 < 1e-4:
+                continue
+            lines.append(f"- {CLASS_LABELS[c]}: {a1:.2f} → {a2:.2f} km² "
+                         f"({(a2-a1):+.2f})")
+            ev_add(f"compare_{c}", [round(a1, 4), round(a2, 4)],
+                   "shared-classifier labelling of both dates")
+        text = "\n".join(lines)
+        overlay = {"type": "change"}
+        conf = 0.72
+
+    # ---------------- EVIDENCE EXPLANATION ----------------
+    elif plan.intent == "evidence_explanation":
+        text = ("**How answers are produced here:**\n\n"
+                "1. Your question is parsed into intent + entities by the "
+                "structured query planner.\n"
+                "2. Only the required deterministic tools run (segmentation, "
+                "detectors, indices, change).\n"
+                "3. Every number is measured from pixels; each method is listed "
+                "under Evidence with an ID.\n"
+                "4. The overlay image marks exactly which pixels back the answer.\n\n"
+                f"Current scene basis: {fs.veg_index_name} + {fs.water_index_name}"
+                + (" with true NIR band." if scene.has_nir
+                   else " (no NIR band — RGB proxies).")
+                + "\n\nAsk a measurement question, then expand **Evidence** on "
+                  "the reply (or open the Evidence panel) to audit it.")
+        overlay = {"type": "landcover"}
+        conf = 0.90
+
     # ---------------- DESCRIBE ----------------
     else:
         ranked = [(c, f) for c, f in _rank_classes(lc) if f > 0.012]
@@ -542,3 +677,114 @@ def _narrative(lc: LandCover, objs: dict, fs) -> str:
     if f.get("shadow", 0) > 0.10:
         bits.append("Extensive shadowing suggests low sun elevation or tall relief/structures.")
     return " ".join(bits) or "No further dominant structural signal."
+
+
+# --------------------------------------------------------------------------- #
+# v2: structured planner taxonomy (additive)
+# --------------------------------------------------------------------------- #
+#: v1 intent name -> v2 canonical name (answer() accepts both).
+_ALIASES = {
+    "change": "change", "temporal_change": "change",
+    "comparison": "comparison",
+    "count": "count", "object_count": "count",
+    "area": "area", "area_estimation": "area",
+    "locate": "locate", "object_location": "locate",
+    "presence": "presence",
+    "describe": "describe", "scene_summary": "describe",
+    "land_cover": "land_cover", "spectral_index": "spectral_index",
+    "spatial_statistics": "spatial_statistics",
+    "evidence_explanation": "evidence_explanation",
+}
+
+_OPERATION_FOR = {
+    "scene_summary": "summarize_scene", "land_cover": "classify",
+    "spectral_index": "compute_indices", "object_count": "count",
+    "object_location": "localize", "temporal_change": "area_delta",
+    "comparison": "side_by_side", "area_estimation": "measure_area",
+    "spatial_statistics": "compute_stats",
+    "evidence_explanation": "trace_evidence", "presence": "test_presence",
+    "change": "area_delta", "count": "count", "area": "measure_area",
+    "locate": "localize", "describe": "summarize_scene",
+}
+
+_EVIDENCE_FOR = {
+    "scene_summary": ["land_cover", "objects", "indices"],
+    "land_cover": ["land_cover", "cluster_signatures", "uncertainty"],
+    "spectral_index": ["indices", "band_availability"],
+    "object_count": ["detections", "detector_method"],
+    "object_location": ["detections", "class_mask"],
+    "temporal_change": ["land_cover_A", "land_cover_B", "registration_quality",
+                        "pixel_area", "change_mask"],
+    "comparison": ["land_cover_A", "land_cover_B", "pixel_area"],
+    "area_estimation": ["class_mask", "pixel_area"],
+    "spatial_statistics": ["texture", "edges", "brightness"],
+    "evidence_explanation": ["pipeline_trace"],
+    "presence": ["class_mask", "detections"],
+    "change": ["land_cover_A", "land_cover_B", "registration_quality",
+               "pixel_area", "change_mask"],
+    "count": ["detections", "detector_method"],
+    "area": ["class_mask", "pixel_area"],
+    "locate": ["detections", "class_mask"],
+    "describe": ["land_cover", "objects", "indices"],
+}
+
+_TOOLS_FOR = {
+    "scene_summary": ["landcover.segment", "objects.summarize", "features.compute"],
+    "land_cover": ["landcover.segment", "landcover.quality"],
+    "spectral_index": ["features.compute_all_indices"],
+    "object_count": ["objects.summarize"],
+    "object_location": ["objects.summarize", "landcover.class_mask"],
+    "temporal_change": ["change.detect", "change.severity"],
+    "comparison": ["change.detect(shared classifier)"],
+    "area_estimation": ["landcover.class_mask", "scene.px_area"],
+    "spatial_statistics": ["features.spatial_statistics"],
+    "evidence_explanation": ["evidence.graph"],
+    "presence": ["landcover.class_mask", "objects.summarize"],
+    "change": ["change.detect", "change.severity"],
+    "count": ["objects.summarize"],
+    "area": ["landcover.class_mask", "scene.px_area"],
+    "locate": ["objects.summarize", "landcover.class_mask"],
+    "describe": ["landcover.segment", "objects.summarize", "features.compute"],
+}
+
+
+def _to_v2_intent(intent: str, ql: str, entities: List[str], objects: List[str]) -> str:
+    """Map the lexicon pass onto the v2 structured intent taxonomy."""
+    def _has(*phrases: str) -> bool:
+        return any(re.search(r"\b" + re.escape(p) + r"\b", ql) for p in phrases)
+
+    if ("how did you" in ql or "how was this" in ql or "explain the evidence" in ql
+            or "explain evidence" in ql or "what method" in ql
+            or "which method" in ql or "why did you" in ql
+            or "show the evidence" in ql or "show evidence" in ql
+            or "behind this result" in ql or "explain this result" in ql):
+        return "evidence_explanation"
+    if (_has("ndvi", "ndwi", "mndwi", "ndbi", "savi", "evi", "gndvi", "vari",
+             "exg") or "vegetation index" in ql or "water index" in ql
+            or "spectral index" in ql or "spectral indices" in ql):
+        return "spectral_index"
+    if (_has("texture", "brightness", "contrast", "histogram")
+            or "edge density" in ql or "spatial statistic" in ql
+            or "image statistic" in ql):
+        return "spatial_statistics"
+    if "land cover" in ql or "landcover" in ql or "classification" in ql:
+        if intent in ("area", "describe"):
+            return "land_cover"
+    if intent == "change":
+        if "compar" in ql and not any(k in ql for k in
+                                      ("change", "changed", "loss", "lost", "gain",
+                                       "deforest", "expansion", "shrink", "increase",
+                                       "decrease", "convert")):
+            return "comparison"
+        return "temporal_change"
+    return {"count": "object_count", "area": "area_estimation",
+            "locate": "object_location", "describe": "scene_summary"}.get(intent, intent)
+
+
+def plan_to_dict(plan: QueryPlan) -> dict:
+    """Render the structured plan for the UI (QUERY → … → ANSWER trace)."""
+    return {"intent": plan.intent, "target": plan.target,
+            "operation": plan.operation,
+            "required_evidence": plan.required_evidence,
+            "tools": plan.tools, "entities": plan.entities,
+            "objects": plan.objects, "superlative": plan.superlative}

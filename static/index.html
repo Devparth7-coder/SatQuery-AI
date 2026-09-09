@@ -3,480 +3,641 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SatQuery AI — Vision-Language Assistant for Remote Sensing</title>
+<title>SatQuery AI — Evidence-First Earth Observation Intelligence</title>
 <style>
-  :root{
-    --bg:#070b14; --panel:#0d1424; --panel2:#111a2e; --line:#1e2a44;
-    --txt:#e6edf7; --dim:#8ea0bd; --accent:#4da3ff; --accent2:#22d39a;
-    --warn:#ffb020; --danger:#ff5c5c; --radius:14px;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{
-    background:
-      radial-gradient(1200px 700px at 12% -10%, #12203a 0%, transparent 60%),
-      radial-gradient(900px 600px at 100% 0%, #0d2b2a 0%, transparent 55%),
-      var(--bg);
-    color:var(--txt); font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    display:flex; flex-direction:column; height:100vh; overflow:hidden;
-  }
-  header{
-    display:flex; align-items:center; gap:14px; padding:12px 20px;
-    border-bottom:1px solid var(--line); background:rgba(9,14,25,.82); backdrop-filter:blur(10px);
-    flex:0 0 auto;
-  }
-  .logo{width:36px;height:36px;flex:0 0 auto}
-  h1{font-size:17px;margin:0;letter-spacing:.3px;font-weight:650}
-  .sub{font-size:11.5px;color:var(--dim);margin-top:1px}
-  .tag{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-  .chip{
-    font-size:10.5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;
-    color:var(--dim);background:#0b1322;white-space:nowrap
-  }
-  .chip.live{color:var(--accent2);border-color:#194f3d;background:#08211a}
-  main{display:grid;grid-template-columns:308px 1fr 396px;gap:14px;padding:14px;flex:1 1 auto;min-height:0}
-  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-    border-radius:var(--radius);display:flex;flex-direction:column;min-height:0}
-  .phead{padding:11px 14px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:700;
-    letter-spacing:.9px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:8px}
-  .pbody{padding:14px;overflow:auto;flex:1 1 auto;min-height:0}
-  .pbody::-webkit-scrollbar,.viewer::-webkit-scrollbar{width:8px;height:8px}
-  .pbody::-webkit-scrollbar-thumb,.viewer::-webkit-scrollbar-thumb{background:#22304d;border-radius:8px}
-
-  .drop{border:1.5px dashed #2b3c5e;border-radius:12px;padding:18px 12px;text-align:center;
-    cursor:pointer;transition:.18s;background:#0a1120}
-  .drop:hover,.drop.over{border-color:var(--accent);background:#0d1a2f}
-  .drop svg{opacity:.75;margin-bottom:6px}
-  .drop b{display:block;font-size:13px}
-  .drop span{font-size:11px;color:var(--dim)}
-  .thumb{width:100%;border-radius:9px;margin-top:9px;border:1px solid var(--line);display:block}
-
-  label.f{display:block;font-size:11px;color:var(--dim);margin:14px 0 5px;letter-spacing:.4px;
-    text-transform:uppercase;font-weight:600}
-  input[type=number],select,input[type=text]{
-    width:100%;background:#0a1120;border:1px solid var(--line);color:var(--txt);
-    padding:8px 10px;border-radius:9px;font-size:13px;outline:none;font-family:inherit}
-  input:focus,select:focus{border-color:var(--accent)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-  button{
-    width:100%;margin-top:14px;padding:11px;border:0;border-radius:10px;cursor:pointer;
-    background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;font-weight:700;font-size:13.5px;
-    font-family:inherit;transition:.15s;letter-spacing:.2px}
-  button:hover{filter:brightness(1.12)} button:disabled{opacity:.5;cursor:not-allowed;filter:none}
-  button.ghost{background:#101a2c;border:1px solid var(--line);color:var(--dim);font-weight:600;
-    padding:8px;font-size:12px;margin-top:8px}
-  button.ghost:hover{color:var(--txt);border-color:var(--accent)}
-
-  .samples{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-  .samp{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
-    background:#0a1120;transition:.15s;position:relative}
-  .samp:hover{border-color:var(--accent);transform:translateY(-1px)}
-  .samp img{width:100%;height:58px;object-fit:cover;display:block}
-  .samp div{font-size:9.5px;padding:4px 5px;color:var(--dim);text-align:center;line-height:1.25}
-
-  .viewer{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;
-    overflow:auto;min-height:0;position:relative}
-  .viewer img{max-width:100%;max-height:100%;border-radius:11px;object-fit:contain;
-    box-shadow:0 12px 44px rgba(0,0,0,.55)}
-  .tabs{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  .tab{font-size:11.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);
-    background:#0a1120;color:var(--dim);cursor:pointer;transition:.15s;white-space:nowrap}
-  .tab:hover{color:var(--txt)}
-  .tab.on{background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;border-color:transparent;font-weight:650}
-
-  .legend{display:flex;flex-direction:column;gap:5px}
-  .lg{display:flex;align-items:center;gap:8px;font-size:11.5px}
-  .sw{width:12px;height:12px;border-radius:3px;flex:0 0 auto;border:1px solid rgba(255,255,255,.18)}
-  .lg .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lg .vl{color:var(--dim);font-variant-numeric:tabular-nums;font-size:11px}
-  .bar{height:4px;background:#0a1120;border-radius:4px;overflow:hidden;margin-top:2px}
-  .bar i{display:block;height:100%;border-radius:4px}
-
-  .chatwrap{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
-  .chat{flex:1 1 auto;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:11px;min-height:0}
-  .msg{max-width:95%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6;
-    animation:pop .22s ease}
-  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .me{align-self:flex-end;background:linear-gradient(135deg,#2b5fa8,#20806a);color:#fff;
-    border-bottom-right-radius:4px}
-  .ai{align-self:flex-start;background:#0c1526;border:1px solid var(--line);
-    border-bottom-left-radius:4px;width:100%}
-  .ai b,.ai strong{color:#fff}
-  .ai code{background:#0a1120;padding:1px 5px;border-radius:4px;font-size:11.5px}
-  .meta{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
-  .pill{font-size:9.5px;padding:2.5px 8px;border-radius:999px;background:#0a1424;
-    border:1px solid var(--line);color:var(--dim);letter-spacing:.3px}
-  .pill.i{color:var(--accent);border-color:#1c3a5e}
-  .pill.c{color:var(--accent2);border-color:#174a39}
-  .pill.w{color:var(--warn);border-color:#4a3a12}
-  details.ev{margin-top:9px}
-  details.ev summary{cursor:pointer;font-size:10.5px;color:var(--dim);outline:none;
-    letter-spacing:.4px;text-transform:uppercase;font-weight:600}
-  details.ev summary:hover{color:var(--accent)}
-  .evrow{font-size:10.5px;color:var(--dim);padding:5px 0;border-bottom:1px dashed #182440;
-    display:grid;grid-template-columns:1fr auto;gap:8px}
-  .evrow .k{color:#b9c8e0;font-family:ui-monospace,monospace;font-size:10px}
-  .evrow .m{grid-column:1/-1;font-size:9.5px;opacity:.72;font-style:italic}
-  .ovthumb{width:100%;border-radius:9px;margin-top:9px;border:1px solid var(--line);cursor:zoom-in}
-
-  .askbar{border-top:1px solid var(--line);padding:11px;display:flex;gap:8px;flex:0 0 auto;background:#0a1120}
-  .askbar input{flex:1;border-radius:10px}
-  .askbar button{width:auto;margin:0;padding:9px 17px;border-radius:10px}
-  .sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 11px 10px;flex:0 0 auto;background:#0a1120}
-  .sg{font-size:10.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);
-    background:#0c1526;color:var(--dim);cursor:pointer;transition:.15s}
-  .sg:hover{color:var(--txt);border-color:var(--accent);background:#0f1e35}
-
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-  .st{background:#0a1120;border:1px solid var(--line);border-radius:9px;padding:8px 10px}
-  .st .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
-  .st .l{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
-  .empty{color:var(--dim);text-align:center;font-size:12.5px;padding:36px 18px;line-height:1.7}
-  .empty svg{opacity:.35;margin-bottom:10px}
-  .spin{width:15px;height:15px;border:2px solid #24304a;border-top-color:var(--accent);
-    border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px}
-  @keyframes sp{to{transform:rotate(360deg)}}
-  .err{color:var(--danger);font-size:12px;margin-top:9px;padding:8px 10px;background:#2a1013;
-    border:1px solid #4a1c22;border-radius:8px}
-  .hint{font-size:10.5px;color:var(--dim);margin-top:7px;line-height:1.5}
-  .modal{position:fixed;inset:0;background:rgba(3,6,12,.93);display:none;align-items:center;
-    justify-content:center;z-index:99;padding:26px;cursor:zoom-out}
-  .modal.on{display:flex}
-  .modal img{max-width:96%;max-height:96%;border-radius:12px}
-  @media(max-width:1180px){main{grid-template-columns:1fr;overflow:auto}
-    body{overflow:auto;height:auto}.chat{max-height:400px}}
+:root{--bg:#070b14;--panel:#0d1424;--panel2:#101a30;--line:#1e2a44;--txt:#e6edf7;
+--dim:#8ea0bd;--acc:#4da3ff;--grn:#22d39a;--amb:#ffb020;--red:#ff5c5c;--r:12px}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:radial-gradient(1200px 700px at 12% -10%,#12203a 0%,transparent 60%),radial-gradient(900px 600px at 100% 0%,#0d2b2a 0%,transparent 55%),var(--bg);
+color:var(--txt);font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--acc)}button{font-family:inherit}
+.hidden{display:none!important}
+/* ---------- landing ---------- */
+#landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:0 20px 60px}
+.lnav{width:100%;max-width:1080px;display:flex;align-items:center;gap:12px;padding:18px 4px}
+.lnav .sp{flex:1}.btn{background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;border:0;border-radius:10px;
+padding:11px 22px;font-weight:700;font-size:14px;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.12)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:#101a2c;border:1px solid var(--line);color:var(--dim);font-weight:600}
+.btn.ghost:hover{color:var(--txt);border-color:var(--acc)}
+.btn.sm{padding:7px 13px;font-size:12px}.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+.hero{max-width:1080px;text-align:left;padding:56px 4px 10px;width:100%}
+.hero .k{font-size:12px;letter-spacing:3px;color:var(--grn);font-weight:700}
+.hero h1{font-size:52px;line-height:1.05;margin:14px 0 6px;font-weight:750;letter-spacing:-1px}
+.hero h1 .g{background:linear-gradient(135deg,#4da3ff,#22d39a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.sub{font-size:18px;color:var(--dim);max-width:640px;margin:10px 0 26px}
+.steps{max-width:1080px;width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:44px}
+.step{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.step .n{font-size:11px;color:var(--acc);font-weight:700;letter-spacing:2px}
+.step h3{margin:6px 0 4px;font-size:15px}.step p{margin:0;font-size:12.5px;color:var(--dim)}
+.lfoot{margin-top:44px;color:var(--dim);font-size:12px;text-align:center;max-width:1080px}
+/* ---------- workspace ---------- */
+#ws{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header.top{display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid var(--line);
+background:rgba(9,14,25,.88);backdrop-filter:blur(10px);flex:0 0 auto}
+header.top h1{font-size:15px;margin:0;font-weight:700}
+header.top .sub{font-size:10.5px;color:var(--dim);letter-spacing:1.5px}
+.chips{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.chip{font-size:10.5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;color:var(--dim);background:#0b1322;white-space:nowrap}
+.chip.live{color:var(--grn);border-color:#194f3d;background:#08211a}
+.chip.warn{color:var(--amb);border-color:#4a3a12}.chip.geo{color:var(--acc);border-color:#1c3a5e}
+.layout{flex:1;display:grid;grid-template-columns:196px 1fr 372px;gap:12px;padding:12px;min-height:0}
+nav.side{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);
+padding:10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+nav.side .nl{font-size:10px;letter-spacing:1.5px;color:var(--dim);padding:8px 10px 4px;text-transform:uppercase}
+.nitem{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--dim);border:1px solid transparent}
+.nitem:hover{color:var(--txt);background:#101a30}.nitem.on{color:#fff;background:#12244a;border-color:#1c3a5e}
+.nitem .dot{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--grn)}
+main.center{min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto;padding-right:2px}
+.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r)}
+.card .ch{padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:1px;
+text-transform:uppercase;color:var(--dim);display:flex;gap:8px;align-items:center}
+.card .cb{padding:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:1250px){.layout{grid-template-columns:170px 1fr}.right{grid-column:1/-1;min-height:420px}.grid4{grid-template-columns:1fr 1fr}}
+.stat{background:#0a1120;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .v{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}.stat .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t td,table.t th{padding:6px 8px;border-bottom:1px solid #16213a;text-align:left;vertical-align:top}
+table.t th{color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+code,kbd{background:#0a1120;padding:1px 6px;border-radius:5px;font-size:11.5px;font-family:ui-monospace,monospace}
+.empty{color:var(--dim);text-align:center;font-size:12.5px;padding:30px 16px;line-height:1.7}
+.pill{font-size:10px;padding:2.5px 9px;border-radius:999px;background:#0a1424;border:1px solid var(--line);color:var(--dim);letter-spacing:.3px;white-space:nowrap}
+.pill.i{color:var(--acc);border-color:#1c3a5e}.pill.c{color:var(--grn);border-color:#174a39}
+.pill.w{color:var(--amb);border-color:#4a3a12}.pill.r{color:var(--red);border-color:#4a1c22}
+.sev{font-weight:800;letter-spacing:1px;font-size:12px;padding:4px 14px;border-radius:8px}
+.sev.LOW{background:#0a2b22;color:var(--grn)}.sev.MEDIUM{background:#2e230a;color:var(--amb)}.sev.HIGH{background:#2e1013;color:var(--red)}
+/* viewer */
+.vwrap{display:flex;flex-direction:column;min-height:0}
+.vtools{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+.tab{font-size:11.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#0a1120;color:var(--dim);cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--txt)}.tab.on{background:linear-gradient(135deg,#2f7fe0,#1fb98a);color:#fff;border-color:transparent;font-weight:650}
+.vbtn{font-size:11px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:#0a1120;color:var(--dim);cursor:pointer}
+.vbtn:hover{color:var(--txt);border-color:var(--acc)}.vbtn.on{color:#fff;background:#1a3a6e;border-color:var(--acc)}
+.vstage{position:relative;height:430px;overflow:hidden;background:#05080f;border-radius:0 0 11px 11px;cursor:grab}
+.vstage.inspect{cursor:crosshair}.vstage.measure{cursor:crosshair}.vstage.box{cursor:crosshair}.vstage.marker{cursor:copy}
+.vstage img.lyr{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:0 0;pointer-events:none;user-select:none}
+#svgov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.vhud{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;max-width:70%}
+.vhud2{position:absolute;right:10px;top:10px;display:flex;gap:6px;flex-direction:column;align-items:flex-end}
+.vcoords{position:absolute;right:10px;bottom:10px;font-size:11px;color:var(--dim);background:rgba(5,8,15,.8);
+border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-variant-numeric:tabular-nums}
+.vlegend{position:absolute;left:10px;top:10px;background:rgba(5,8,15,.85);border:1px solid var(--line);
+border-radius:9px;padding:8px 10px;font-size:10.5px;max-width:220px}
+.vlegend .lr{display:flex;gap:7px;align-items:center;margin:2px 0}
+.vlegend .sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+input[type=range]{accent-color:var(--acc)}
+input[type=text],input[type=number],select{width:100%;background:#0a1120;border:1px solid var(--line);color:var(--txt);
+padding:8px 10px;border-radius:9px;font-size:13px;outline:none;font-family:inherit}
+input:focus,select:focus{border-color:var(--acc)}
+label.f{display:block;font-size:10.5px;color:var(--dim);margin:12px 0 5px;letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.drop{border:1.5px dashed #2b3c5e;border-radius:10px;padding:14px 10px;text-align:center;cursor:pointer;background:#0a1120;font-size:12px}
+.drop:hover{border-color:var(--acc)}.thumb{width:100%;border-radius:8px;margin-top:8px;border:1px solid var(--line);display:block;max-height:150px;object-fit:cover}
+.hint{font-size:11px;color:var(--dim);margin-top:7px;line-height:1.5}
+.err{color:var(--red);font-size:12px;margin-top:9px;padding:8px 10px;background:#2a1013;border:1px solid #4a1c22;border-radius:8px}
+/* right assistant */
+.right{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);
+display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.chat{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:120px}
+.msg{max-width:97%;padding:9px 12px;border-radius:11px;font-size:12.8px;line-height:1.6}
+.me{align-self:flex-end;background:linear-gradient(135deg,#2b5fa8,#20806a);color:#fff;border-bottom-right-radius:4px}
+.ai{align-self:flex-start;background:#0c1526;border:1px solid var(--line);border-bottom-left-radius:4px;width:100%}
+.ai b{color:#fff}.meta{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+details.ev{margin-top:8px}details.ev summary{cursor:pointer;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+details.ev summary:hover{color:var(--acc)}
+.evrow{font-size:10.5px;color:var(--dim);padding:5px 0;border-bottom:1px dashed #182440}
+.evrow .k{color:#b9c8e0;font-family:ui-monospace,monospace;font-size:10px}
+.ovthumb{width:100%;border-radius:8px;margin-top:8px;border:1px solid var(--line);cursor:zoom-in}
+.askbar{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;background:#0a1120}
+.askbar button{width:auto;margin:0}
+.sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px;background:#0a1120;max-height:74px;overflow:auto}
+.sg{font-size:10.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:#0c1526;color:var(--dim);cursor:pointer}
+.sg:hover{color:var(--txt);border-color:var(--acc)}
+/* compare slider */
+.cmp{position:relative;height:380px;overflow:hidden;border-radius:10px;background:#05080f}
+.cmp img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}
+.cmp .top{clip-path:inset(0 50% 0 0)}.cmp .dl{position:absolute;top:8px;font-size:10px;padding:2px 9px;border-radius:99px;background:rgba(5,8,15,.8);border:1px solid var(--line)}
+/* misc */
+.legendbar{height:5px;background:#0a1120;border-radius:5px;overflow:hidden;margin-top:3px}
+.legendbar i{display:block;height:100%}
+.sampgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.samp{border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#0a1120}
+.samp:hover{border-color:var(--acc)}.samp img{width:100%;height:92px;object-fit:cover;display:block}
+.samp div{font-size:11px;padding:6px 8px;color:var(--dim)}
+.modal{position:fixed;inset:0;background:rgba(3,6,12,.93);display:none;align-items:center;justify-content:center;z-index:99;padding:24px}
+.modal.on{display:flex}.modal .box{max-width:860px;width:100%;max-height:92vh;overflow:auto}
+.modal img{max-width:100%;border-radius:10px}
+.spin{width:14px;height:14px;border:2px solid #24304a;border-top-color:var(--acc);border-radius:50%;
+animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px}
+.toastmsg{background:#101a30;border:1px solid var(--acc);border-radius:10px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+canvas.hist{width:100%;height:150px;background:#0a1120;border:1px solid var(--line);border-radius:9px}
+.kv{font-size:12px;display:grid;grid-template-columns:150px 1fr;gap:4px 10px}
+.kv dt{color:var(--dim)}.kv dd{margin:0;word-break:break-word}
 </style>
 </head>
 <body>
-<header>
-  <svg class="logo" viewBox="0 0 48 48" fill="none">
-    <circle cx="24" cy="24" r="15" stroke="#4da3ff" stroke-width="2.2"/>
-    <ellipse cx="24" cy="24" rx="15" ry="6.5" stroke="#22d39a" stroke-width="1.6" opacity=".85"/>
-    <path d="M9 20h30M9 28h30" stroke="#22d39a" stroke-width="1.1" opacity=".45"/>
-    <circle cx="24" cy="24" r="4.2" fill="#4da3ff"/>
-    <path d="M38 10l6-6M44 4h-5M44 4v5" stroke="#ffb020" stroke-width="2" stroke-linecap="round"/>
-  </svg>
-  <div>
-    <h1>SatQuery AI</h1>
-    <div class="sub">Interactive Vision-Language Assistant for Multimodal Remote Sensing Image Analysis</div>
+
+<!-- ================= LANDING ================= -->
+<div id="landing">
+  <div class="lnav">
+    <svg width="32" height="32" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#4da3ff" stroke-width="2.2"/><ellipse cx="24" cy="24" rx="15" ry="6.5" stroke="#22d39a" stroke-width="1.6" opacity=".85"/><circle cx="24" cy="24" r="4.2" fill="#4da3ff"/></svg>
+    <div><b>SATQUERY AI</b><div style="font-size:10.5px;color:var(--dim);letter-spacing:2px">EARTH OBSERVATION INTELLIGENCE</div></div>
+    <div class="sp"></div><span class="chip" id="lver">v…</span>
   </div>
-  <div class="tag">
-    <span class="chip">ISRO · Space Technology</span>
-    <span class="chip" id="engine">Engine: on-device CV</span>
-    <span class="chip live" id="status">● ready</span>
+  <div class="hero">
+    <div class="k">EVIDENCE-FIRST · OFFLINE · REPRODUCIBLE</div>
+    <h1>Ask Questions.<br/><span class="g">Explore Earth.</span></h1>
+    <p class="sub">An evidence-first intelligence platform for understanding satellite imagery. Natural-language queries answered with pixel-derived measurements, visual proof and an auditable evidence trail — never invented numbers.</p>
+    <div class="btnrow">
+      <button class="btn" id="cta-analyze">Analyze a Scene</button>
+      <button class="btn ghost" id="cta-demo">Explore Demo</button>
+    </div>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="n">01 — ASK</div><h3>Natural queries</h3><p>Ask about land cover, objects, indices and change in plain English.</p></div>
+    <div class="step"><div class="n">02 — MEASURE</div><h3>Pixel-derived metrics</h3><p>Areas, counts, indices and transitions computed from the image.</p></div>
+    <div class="step"><div class="n">03 — EXPLAIN</div><h3>Transparent evidence</h3><p>Every answer cites its method, pixels and limitations.</p></div>
+    <div class="step"><div class="n">04 — COMPARE</div><h3>Temporal analysis</h3><p>Co-registered before/after change detection with severity.</p></div>
+    <div class="step"><div class="n">05 — REPORT</div><h3>Reproducible outputs</h3><p>Versioned reports and history you can re-run and audit.</p></div>
+  </div>
+  <div class="lfoot" id="lfoot">Loading…</div>
+</div>
+
+<!-- ================= WORKSPACE ================= -->
+<div id="ws" class="hidden">
+<header class="top">
+  <svg width="28" height="28" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="15" stroke="#4da3ff" stroke-width="2.2"/><ellipse cx="24" cy="24" rx="15" ry="6.5" stroke="#22d39a" stroke-width="1.6" opacity=".85"/><circle cx="24" cy="24" r="4.2" fill="#4da3ff"/></svg>
+  <div><h1>SATQUERY AI</h1><div class="sub">EARTH OBSERVATION INTELLIGENCE</div></div>
+  <div class="chips">
+    <span class="chip" id="c-home" style="cursor:pointer">← Landing</span>
+    <span class="chip" id="c-geo">no scene</span>
+    <span class="chip" id="c-sess">no session</span>
+    <span class="chip live" id="c-status">● ready</span>
   </div>
 </header>
+<div class="layout">
+<nav class="side" id="sidenav">
+  <div class="nl">Workspace</div>
+  <div class="nitem" data-v="overview">◉ Overview</div>
+  <div class="nitem" data-v="scenes">▦ Scenes</div>
+  <div class="nitem" data-v="analyze">⬆ Analyze</div>
+  <div class="nl">Intelligence</div>
+  <div class="nitem" data-v="compare">◐ Compare</div>
+  <div class="nitem" data-v="change">⚡ Change Detection</div>
+  <div class="nitem" data-v="landcover">▣ Land Cover</div>
+  <div class="nitem" data-v="spectral">≋ Spectral Analysis</div>
+  <div class="nitem" data-v="objects">◎ Objects</div>
+  <div class="nitem" data-v="evidence">⧉ Evidence</div>
+  <div class="nl">Outputs</div>
+  <div class="nitem" data-v="reports">▤ Reports</div>
+  <div class="nitem" data-v="history">↺ History</div>
+  <div class="nitem" data-v="settings">⚙ Settings</div>
+</nav>
+<main class="center" id="center"></main>
+<aside class="right">
+  <div style="padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:1px;color:var(--dim);display:flex;gap:8px;align-items:center">
+    QUERY ASSISTANT
+    <label style="margin-left:auto;font-size:10px;display:flex;gap:5px;align-items:center;cursor:pointer;text-transform:none;letter-spacing:0">
+      <input type="checkbox" id="explainmode" style="width:auto"/> Explain mode</label>
+  </div>
+  <div class="chat" id="chat"><div class="empty">Analyze a scene, then ask anything.<br/>Every answer is grounded in measured evidence.</div></div>
+  <div class="sugg" id="sugg"></div>
+  <div class="askbar"><input type="text" id="q" placeholder="e.g. How much of this scene is water?" disabled/><button class="btn sm" id="send" disabled>Ask</button></div>
+</aside>
+</div>
+</div>
 
-<main>
-  <!-- LEFT -->
-  <section class="panel">
-    <div class="phead">① Scene Input</div>
-    <div class="pbody">
-      <div class="drop" id="drop1">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.6">
-          <path d="M12 16V4m0 0L8 8m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
-        <b>Drop scene (T1)</b><span>PNG / JPG / TIFF · click to browse</span>
-      </div>
-      <img id="th1" class="thumb" style="display:none"/>
-      <input type="file" id="f1" accept="image/*" hidden/>
-
-      <label class="f">Optional — Second date (T2) for change detection</label>
-      <div class="drop" id="drop2" style="padding:12px">
-        <b style="font-size:12px">Drop scene (T2)</b><span>enables bi-temporal analysis</span>
-      </div>
-      <img id="th2" class="thumb" style="display:none"/>
-      <input type="file" id="f2" accept="image/*" hidden/>
-
-      <div class="row" style="margin-top:6px">
-        <div><label class="f">GSD (m/px)</label><input type="number" id="gsd" value="10" min="0.1" step="0.1"/></div>
-        <div><label class="f">Clusters (k)</label><input type="number" id="k" value="7" min="4" max="10"/></div>
-      </div>
-      <div class="hint">GSD sets the ground scale used for every area & length figure.
-        Sentinel-2 ≈ 10 m, Resourcesat LISS-IV ≈ 5.8 m, Cartosat-2 ≈ 0.65 m.</div>
-
-      <button id="run" disabled>Analyse Scene</button>
-      <div id="err"></div>
-
-      <label class="f">Sample scenes</label>
-      <div class="samples" id="samples"></div>
-      <button class="ghost" id="loadpair">Load bi-temporal demo pair →</button>
-    </div>
-  </section>
-
-  <!-- CENTER -->
-  <section class="panel">
-    <div class="phead">② Visual Grounding</div>
-    <div class="tabs" id="tabs"></div>
-    <div class="viewer" id="viewer">
-      <div class="empty">
-        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l4-4 4 4 3-3 7 7"/>
-          <circle cx="15" cy="8" r="1.6"/></svg>
-        <div>Upload a satellite scene or pick a sample to begin.<br/>
-        Segmentation, spectral indices and detections render here.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- RIGHT -->
-  <section class="panel">
-    <div class="phead">③ Query Assistant</div>
-    <div class="chatwrap">
-      <div class="chat" id="chat">
-        <div class="empty" style="padding:22px 14px">
-          <b style="color:#e6edf7">Ask anything about the scene.</b><br/>
-          Every answer is grounded in measurements computed from the pixels —
-          expand <i>Evidence</i> on any reply to audit the exact numbers and method.
-        </div>
-      </div>
-      <div class="sugg" id="sugg"></div>
-      <div class="askbar">
-        <input type="text" id="q" placeholder="e.g. How much of this scene is water?" disabled/>
-        <button id="send" disabled>Ask</button>
-      </div>
-    </div>
-  </section>
-</main>
-
-<div class="modal" id="modal"><img id="modalimg"/></div>
+<div class="modal" id="modal"><div class="box" id="modalbox"></div></div>
+<div id="toast"></div>
 
 <script>
-const $ = s => document.querySelector(s);
-let S = { session:null, images:{}, tab:'landcover', file1:null, file2:null, legend:[], data:null };
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const S={data:null,session:null,view:"overview",tab:"landcover",indices:null,objects:null,evidence:[],
+queries:[],history:[],samples:[],providers:[],sensors:[],health:null,version:null,explain:false,
+z:1,tx:0,ty:0,mode:"pan",measure:[],markers:[],box:null,bench:null,reportHtml:"",
+settings:{gsd:10,k:7,adaptive:false,sensor:""},file1:null,file2:null,sample1:null,sample2:null};
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function md(t){return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>").replace(/^- (.+)$/gm,"• $1").replace(/\n/g,"<br/>")}
+function toast(m){const d=document.createElement("div");d.className="toastmsg";d.textContent=m;$("#toast").appendChild(d);setTimeout(()=>d.remove(),3400)}
+async function api(path,opts){const r=await fetch(path,opts);const ct=r.headers.get("content-type")||"";
+if(!r.ok){let m="request failed";try{const j=await r.json();m=j.detail||(j.errors&&j.errors[0]&&j.errors[0].message)||m}catch(e){}throw new Error(m)}
+return ct.includes("application/json")?r.json():r.text()}
+const jget=p=>api(p);
+function modal(html){$("#modalbox").innerHTML=html;$("#modal").classList.add("on")}
+$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").classList.remove("on")};
 
-const DEFAULT_SUGG = [
-  "Describe this scene",
-  "How much of the area is water?",
-  "Where is the built-up area?",
-  "How many water bodies are there?",
-  "Are there any ships?",
-  "Count the roads",
-  "What is the vegetation cover?",
-  "Is there any cloud cover?"
-];
-const CHANGE_SUGG = ["What changed between the two dates?", "Did vegetation decrease?",
-                     "Has the built-up area expanded?", "Any change in water extent?"];
-
-/* ---------- file inputs ---------- */
-function wire(dropId, inputId, thumbId, slot){
-  const d=$(dropId), i=$(inputId), t=$(thumbId);
-  d.onclick=()=>i.click();
-  d.ondragover=e=>{e.preventDefault();d.classList.add('over')};
-  d.ondragleave=()=>d.classList.remove('over');
-  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');
-    if(e.dataTransfer.files[0]) set(e.dataTransfer.files[0])};
-  i.onchange=()=>{ if(i.files[0]) set(i.files[0]) };
-  function set(f){
-    S[slot]=f; const r=new FileReader();
-    r.onload=e=>{t.src=e.target.result;t.style.display='block'};
-    r.readAsDataURL(f);
-    if(slot==='file1'){ S.sample1=null; $('#run').disabled=false; }
-    else S.sample2=null;
-  }
+/* ================= init ================= */
+async function init(){
+  try{S.version=(await jget("/api/version")).data;$("#lver").textContent="v"+S.version.version+" · pipeline "+S.version.pipeline_version;
+    $("#lfoot").innerHTML="SatQuery AI v"+esc(S.version.version)+" · pipeline "+esc(S.version.pipeline_version)+" · "+esc(S.version.build)+" build · fully offline · no API keys · every figure measured from pixels."}catch(e){$("#lfoot").textContent="SatQuery AI — offline build."}
+  try{S.samples=(await jget("/api/samples")).samples||[]}catch(e){S.samples=[]}
+  try{S.providers=(await jget("/api/providers")).data.providers||[]}catch(e){}
+  try{S.sensors=(await jget("/api/sensors")).data.sensors||[]}catch(e){}
+  try{S.health=await jget("/api/health")}catch(e){}
+  $("#cta-analyze").onclick=()=>{enterWS("analyze")};
+  $("#cta-demo").onclick=async()=>{enterWS("overview");await runSample("delta_t1.png","delta_t2.png")};
+  $("#c-home").onclick=()=>{$("#ws").classList.add("hidden");$("#landing").style.display="flex"};
+  $$("#sidenav .nitem").forEach(n=>n.onclick=()=>showView(n.dataset.v));
+  $("#explainmode").onchange=e=>{S.explain=e.target.checked;toast(S.explain?"Explain mode on — queries return full pipeline traces":"Explain mode off")};
+  $("#send").onclick=ask;$("#q").onkeydown=e=>{if(e.key==="Enter")ask()};
+  renderSugg(false);
 }
-wire('#drop1','#f1','#th1','file1');
-wire('#drop2','#f2','#th2','file2');
+function enterWS(view){$("#landing").style.display="none";$("#ws").classList.remove("hidden");showView(view||"overview")}
 
-/* ---------- samples ---------- */
-fetch('/api/samples').then(r=>r.json()).then(d=>{
-  const c=$('#samples');
-  if(!d.samples.length){ c.innerHTML='<div class="hint">No samples bundled.</div>'; return; }
-  d.samples.forEach(s=>{
-    const el=document.createElement('div'); el.className='samp';
-    el.innerHTML=`<img src="${s.url}" alt="${s.title}"/><div>${s.title}</div>`;
-    el.onclick=()=>{ S.sample1=s.name; S.file1=null; S.sample2=null; S.file2=null;
-      $('#th1').src=s.url; $('#th1').style.display='block';
-      $('#th2').style.display='none'; $('#run').disabled=false; run(); };
-    c.appendChild(el);
-  });
-});
-$('#loadpair').onclick=()=>{
-  S.sample1='delta_t1.png'; S.sample2='delta_t2.png'; S.file1=S.file2=null;
-  $('#th1').src='/samples/delta_t1.png'; $('#th1').style.display='block';
-  $('#th2').src='/samples/delta_t2.png'; $('#th2').style.display='block';
-  $('#run').disabled=false; run();
-};
+/* ================= views ================= */
+function showView(v){S.view=v;$$("#sidenav .nitem").forEach(n=>n.classList.toggle("on",n.dataset.v===v));
+  const C=$("#center");
+  if(v==="overview")return renderOverview(C);
+  if(v==="scenes")return renderScenes(C);
+  if(v==="analyze")return renderAnalyze(C);
+  if(v==="compare")return renderCompare(C);
+  if(v==="change")return renderChange(C);
+  if(v==="landcover")return renderLandcover(C);
+  if(v==="spectral")return renderSpectral(C);
+  if(v==="objects")return renderObjects(C);
+  if(v==="evidence")return renderEvidence(C);
+  if(v==="reports")return renderReports(C);
+  if(v==="history")return renderHistory(C);
+  if(v==="settings")return renderSettings(C);
+}
+function needSession(C,what){C.innerHTML=`<div class="card"><div class="cb"><div class="empty"><b style="color:var(--txt)">No analysis yet.</b><br/>${what||"Analyze a scene first — upload imagery or pick a sample."}<br/><br/><button class="btn sm" onclick="showView('analyze')">Go to Analyze</button> <button class="btn sm ghost" onclick="runSample('delta_t1.png','delta_t2.png')">Load bi-temporal demo</button></div></div></div>`;return !S.data}
+window.showView=showView;window.runSample=runSample;
 
-/* ---------- analyse ---------- */
-$('#run').onclick=run;
-async function run(){
-  $('#err').innerHTML=''; $('#run').disabled=true;
-  $('#status').innerHTML='<span class="spin"></span> analysing';
-  $('#viewer').innerHTML='<div class="empty"><span class="spin"></span><br/><br/>'+
-    'Segmenting land cover · computing spectral indices · extracting objects…</div>';
-  try{
-    let res;
-    if(S.sample1){
-      const fd=new FormData(); fd.append('name',S.sample1);
-      if(S.sample2) fd.append('name2',S.sample2);
-      fd.append('gsd',$('#gsd').value); fd.append('k',$('#k').value);
-      res=await fetch('/api/analyze_sample',{method:'POST',body:fd});
-    }else{
-      const fd=new FormData(); fd.append('image',S.file1);
-      if(S.file2) fd.append('image2',S.file2);
-      fd.append('gsd',$('#gsd').value); fd.append('k',$('#k').value);
-      res=await fetch('/api/analyze',{method:'POST',body:fd});
-    }
-    if(!res.ok) throw new Error((await res.json()).detail||'analysis failed');
-    const d=await res.json();
-    S.session=d.session; S.images=d.images; S.legend=d.legend; S.data=d;
-    buildTabs(d); show(d.images.landcover ? 'landcover':'original');
-    renderStats(d);
-    $('#q').disabled=false; $('#send').disabled=false;
-    $('#status').innerHTML='● analysed in '+d.ms+' ms';
-    $('#chat').innerHTML='';
-    addAI(autoBrief(d), null, {intent:'auto-brief',confidence:null});
-    renderSugg(d.has_second);
-  }catch(e){
-    $('#err').innerHTML='<div class="err">'+e.message+'</div>';
-    $('#viewer').innerHTML='<div class="empty">Analysis failed.</div>';
-    $('#status').innerHTML='● error';
-  }
-  $('#run').disabled=false;
+/* ---------- shared viewer ---------- */
+const LAYER_LABEL={original:"Original",landcover:"Land Cover",veg:"Vegetation Index",detections:"Detections",t2:"T2 Scene",change:"Change Map",uncertainty:"Uncertainty",answer:"Query Overlay"};
+function viewerHTML(){return `<div class="card vwrap"><div class="vtools" id="vtabs"></div>
+<div class="vtools" style="border-top:1px solid var(--line)">
+<button class="vbtn" data-m="pan">✥ Pan</button><button class="vbtn" data-m="inspect">⌖ Inspect</button>
+<button class="vbtn" data-m="measure">📏 Measure</button><button class="vbtn" data-m="box">▢ Box area</button>
+<button class="vbtn" data-m="marker">📍 Markers</button>
+<span style="flex:1"></span>
+<button class="vbtn" id="zin">＋</button><button class="vbtn" id="zout">－</button>
+<button class="vbtn" id="zreset">Reset</button><button class="vbtn" id="zfull">⛶</button>
+<label style="font-size:11px;color:var(--dim)">Overlay opacity <input type="range" id="opac" min="0" max="100" value="85" style="width:90px;vertical-align:middle"/></label>
+</div>
+<div class="vstage" id="stage"><img class="lyr" id="lbase" alt=""/><img class="lyr" id="lovl" alt=""/><svg id="svgov"></svg>
+<div class="vlegend" id="vleg"></div><div class="vhud" id="vhud"></div><div class="vhud2" id="vhud2"></div><div class="vcoords" id="vcoord">—</div></div></div>
+<div class="card" id="inspectcard"><div class="ch">Pixel Inspector</div><div class="cb" id="inspectbox"><div class="hint">Set mode to ⌖ Inspect and click the image. Values come from the live analysis session.</div></div></div>`}
+function mountViewer(){
+  const tabs=$("#vtabs");if(!tabs)return;tabs.innerHTML="";
+  const imgs=(S.data&&S.data.images)||{};
+  Object.keys(LAYER_LABEL).forEach(k=>{if(!imgs[k])return;const b=document.createElement("button");b.className="tab"+(S.tab===k?" on":"");b.textContent=LAYER_LABEL[k];b.onclick=()=>{S.tab=k;mountViewer()};tabs.appendChild(b)});
+  const base=$("#lbase"),ovl=$("#lovl");
+  base.src=imgs.original||"";ovl.src=(S.tab==="original")?"":(imgs[S.tab]||"");
+  ovl.style.opacity=($("#opac")?$("#opac").value:85)/100;
+  if($("#opac"))$("#opac").oninput=e=>{ovl.style.opacity=e.target.value/100};
+  $$(".vtools [data-m]").forEach(b=>{b.classList.toggle("on",b.dataset.m===S.mode);b.onclick=()=>{S.mode=b.dataset.m;S.measure=[];drawSvg();mountViewer()}});
+  const st=$("#stage");st.className="vstage "+S.mode;
+  $("#zin").onclick=()=>zoom(1.3);$("#zout").onclick=()=>zoom(1/1.3);$("#zreset").onclick=()=>{S.z=1;S.tx=0;S.ty=0;applyT();drawSvg()};
+  $("#zfull").onclick=()=>{const el=$("#stage");if(el.requestFullscreen)el.requestFullscreen()};
+  applyT();drawSvg();renderVLegend();wireStage(st);
 }
+function applyT(){["#lbase","#lovl"].forEach(s=>{const el=$(s);if(el)el.style.transform=`translate(${S.tx}px,${S.ty}px) scale(${S.z})`});drawSvg()}
+function zoom(f,cx,cy){const st=$("#stage"),r=st.getBoundingClientRect();cx=cx==null?r.width/2:cx;cy=cy==null?r.height/2:cy;
+  const z2=Math.min(10,Math.max(.6,S.z*f));S.tx=cx-(cx-S.tx)*z2/S.z;S.ty=cy-(cy-S.ty)*z2/S.z;S.z=z2;applyT()}
+function imgCoords(e){const img=$("#lovl").src?$("#lovl"):$("#lbase");const r=img.getBoundingClientRect();
+  const d=S.data.scene;const x=(e.clientX-r.left)/r.width*d.analysis_width,y=(e.clientY-r.top)/r.height*d.analysis_height;return{x,y}}
+function stageXY(x,y){const img=$("#lbase");const r0=$("#stage").getBoundingClientRect(),r=img.getBoundingClientRect();
+  const d=S.data.scene;return{x:(r.left-r0.left)+x/d.analysis_width*r.width,y:(r.top-r0.top)+y/d.analysis_height*r.height}}
+function wireStage(st){
+  if(st._wired)return;st._wired=true;
+  st.addEventListener("wheel",e=>{e.preventDefault();const r=st.getBoundingClientRect();zoom(e.deltaY<0?1.15:1/1.15,e.clientX-r.left,e.clientY-r.top)},{passive:false});
+  let drag=null,moved=0;
+  st.addEventListener("pointerdown",e=>{if(!S.data)return;drag={x:e.clientX,y:e.clientY,tx:S.tx,ty:S.ty};moved=0;
+    if(S.mode==="box"){const p=imgCoords(e);S.box={x0:p.x,y0:p.y,x1:p.x,y1:p.y}}st.setPointerCapture(e.pointerId)});
+  st.addEventListener("pointermove",e=>{if(!S.data)return;
+    if(drag&&S.mode==="pan"){moved+=Math.abs(e.movementX)+Math.abs(e.movementY);S.tx=drag.tx+(e.clientX-drag.x);S.ty=drag.ty+(e.clientY-drag.y);applyT()}
+    if(drag&&S.mode==="box"&&S.box){const p=imgCoords(e);S.box.x1=p.x;S.box.y1=p.y;drawSvg()}
+    const p=imgCoords(e),d=S.data.scene;
+    $("#vcoord").textContent=(p.x>=0&&p.y>=0&&p.x<d.analysis_width&&p.y<d.analysis_height)?`x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)} (image-space)`:"—"});
+  st.addEventListener("pointerup",async e=>{const wasDrag=moved>5;const b=S.box;drag=null;
+    if(S.mode==="box"&&b){finishBox(b);S.box=null;drawSvg();return}
+    if(wasDrag||!S.data)return;const p=imgCoords(e),d=S.data.scene;
+    if(p.x<0||p.y<0||p.x>=d.analysis_width||p.y>=d.analysis_height)return;
+    const xi=Math.round(p.x),yi=Math.round(p.y);
+    if(S.mode==="inspect")doInspect(xi,yi);
+    else if(S.mode==="measure"){S.measure.push([xi,yi]);if(S.measure.length===2)finishMeasure();drawSvg()}
+    else if(S.mode==="marker"){S.markers.push([xi,yi]);drawSvg();renderMarkers()}});
+}
+function drawSvg(){const svg=$("#svgov");if(!svg||!S.data)return;const d=S.data.scene;let h="";
+  S.measure.forEach(p=>{const s=stageXY(p[0],p[1]);h+=`<circle cx="${s.x}" cy="${s.y}" r="5" fill="none" stroke="#4da3ff" stroke-width="2"/>`});
+  if(S.measure.length===2){const a=stageXY(S.measure[0][0],S.measure[0][1]),b=stageXY(S.measure[1][0],S.measure[1][1]);
+    h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#4da3ff" stroke-width="2"/>`}
+  S.markers.forEach((p,i)=>{const s=stageXY(p[0],p[1]);h+=`<g><circle cx="${s.x}" cy="${s.y}" r="7" fill="#ffb02033" stroke="#ffb020" stroke-width="2"/><text x="${s.x+10}" y="${s.y-8}" fill="#ffb020" font-size="12">M${i+1}</text></g>`});
+  if(S.box){const a=stageXY(Math.min(S.box.x0,S.box.x1),Math.min(S.box.y0,S.box.y1)),b=stageXY(Math.max(S.box.x0,S.box.x1),Math.max(S.box.y0,S.box.y1));
+    h+=`<rect x="${a.x}" y="${a.y}" width="${b.x-a.x}" height="${b.y-a.y}" fill="#22d39a22" stroke="#22d39a" stroke-width="2"/>`}
+  svg.innerHTML=h}
+function pxArea(){const g=S.data.scene.gsd,sc=S.data.scene.analysis_width/S.data.scene.width;return (g/sc)**2}
+function finishMeasure(){const[a,b]=S.measure;const pa=pxArea();const dist=Math.hypot(b[0]-a[0],b[1]-a[1])*Math.sqrt(pa);
+  const t=dist>=1000?(dist/1000).toFixed(2)+" km":dist.toFixed(1)+" m";
+  $("#inspectbox").innerHTML=`<div class="kv"><dt>Measurement</dt><dd><b>${t}</b> between (${a}) and (${b})</dd><dt>Basis</dt><dd>image-space distance × GSD ${S.data.scene.gsd} m/px</dd></div>`;
+  $("#vhud2").innerHTML=`<span class="pill i">📏 ${t}</span>`;S.measure=[]}
+function finishBox(b){const w=Math.abs(b.x1-b.x0),h=Math.abs(b.y1-b.y0),pa=w*h*pxArea();
+  const t=pa>=1e6?(pa/1e6).toFixed(3)+" km²":pa>=1e4?(pa/1e4).toFixed(2)+" ha":pa.toFixed(0)+" m²";
+  $("#inspectbox").innerHTML=`<div class="kv"><dt>Box area</dt><dd><b>${t}</b> (${w.toFixed(0)}×${h.toFixed(0)} px)</dd><dt>Basis</dt><dd>pixel count × ${(pxArea()).toFixed(1)} m²/px (GSD ${S.data.scene.gsd} m)</dd></div>`}
+function renderMarkers(){if(!S.markers.length)return;$("#inspectbox").innerHTML=`<div class="kv"><dt>Markers</dt><dd>${S.markers.map((p,i)=>`M${i+1} (${p[0]}, ${p[1]})`).join(" · ")}</dd></div><div class="hint">Image-space coordinates. <a href="#" id="mkclear">Clear markers</a></div>`;const c=$("#mkclear");if(c)c.onclick=e=>{e.preventDefault();S.markers=[];drawSvg();$("#inspectbox").innerHTML=""}}
+async function doInspect(x,y){$("#inspectbox").innerHTML='<span class="spin"></span> reading pixel…';
+  try{const d=(await jget(`/api/inspect?session=${S.session}&x=${x}&y=${y}`)).data;
+    $("#inspectbox").innerHTML=`<div class="kv"><dt>Pixel</dt><dd><b>(${d.x}, ${d.y})</b> ${esc(d.coordinate_space)}</dd>
+<dt>RGB</dt><dd><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgb(${d.rgb})"></span> ${d.rgb.join(", ")}</dd>
+<dt>${esc(d.veg_index.name)}</dt><dd>${d.veg_index.value}</dd><dt>${esc(d.water_index.name)}</dt><dd>${d.water_index.value}</dd>
+<dt>Class</dt><dd><b>${esc(d.class_label)}</b> <span class="pill">inferred</span></dd>
+<dt>Uncertainty</dt><dd>${d.uncertainty==null?"unavailable":d.uncertainty}</dd>
+${d.change?`<dt>Change</dt><dd>${d.change.changed?"<b style='color:var(--red)'>changed</b>":"unchanged"} (mag ${d.change.magnitude})</dd>`:""}
+<dt>Pixel area</dt><dd>${d.pixel_area_m2} m²</dd></div>`}catch(e){$("#inspectbox").innerHTML=`<div class="err">${esc(e.message)}</div>`}}
+function renderVLegend(){const el=$("#vleg");if(!el||!S.data)return;
+  el.innerHTML=(S.data.legend||[]).slice(0,7).map(l=>`<div class="lr"><span class="sw" style="background:${esc(l.color)}"></span>${esc(l.label)} ${(l.fraction*100).toFixed(1)}%</div>`).join("");
+  const hud=$("#vhud");hud.innerHTML=S.data.georeferenced?`<span class="pill c">GEOREFERENCED</span>`:`<span class="pill w">IMAGE-SPACE ANALYSIS</span>`;
+  if(S.data.change)hud.innerHTML+=` <span class="pill r">Δ ${(S.data.change.changed_fraction*100).toFixed(1)}% · ${esc(S.data.change.severity||"")}</span>`}
 
-function buildTabs(d){
-  const map={original:'Original',landcover:'Land Cover',veg:'Vegetation Index',
-             detections:'Detections',t2:'T2 Scene',change:'Change Map'};
-  const t=$('#tabs'); t.innerHTML='';
-  Object.keys(map).forEach(k=>{
-    if(!d.images[k]) return;
-    const b=document.createElement('div'); b.className='tab'+(k===S.tab?' on':'');
-    b.textContent=map[k]; b.onclick=()=>show(k); b.dataset.k=k; t.appendChild(b);
-  });
+/* ---------- overview ---------- */
+async function renderOverview(C){
+  C.innerHTML=`<div class="grid4" id="ovtop"></div><div class="grid2"><div class="card"><div class="ch">Recent analyses</div><div class="cb" id="ovhist"></div></div>
+  <div class="card"><div class="ch">Available scenes</div><div class="cb" id="ovsc"></div></div></div>
+  <div class="card"><div class="ch">Processing status</div><div class="cb" id="ovst"></div></div>`;
+  try{S.health=await jget("/api/health")}catch(e){}
+  const h=S.health||{};
+  $("#ovtop").innerHTML=`
+  <div class="stat"><div class="v">${esc(S.version?("v"+S.version.version):"—")}</div><div class="l">product version</div></div>
+  <div class="stat"><div class="v">${h.sessions==null?"—":h.sessions}</div><div class="l">active sessions</div></div>
+  <div class="stat"><div class="v">${S.data?esc(S.data.scene.name):"—"}</div><div class="l">current scene</div></div>
+  <div class="stat"><div class="v">${S.data?S.data.ms+" ms":"—"}</div><div class="l">last analysis time</div></div>`;
+  try{S.history=(await jget("/api/history")).data.records||[]}catch(e){S.history=[]}
+  $("#ovhist").innerHTML=S.history.length?S.history.slice(0,5).map(r=>`<div style="padding:7px 0;border-bottom:1px dashed #182440;font-size:12.5px"><b>${esc(r.label||r.analysis_id)}</b><br/><span style="color:var(--dim)">${new Date(r.timestamp*1000).toLocaleString()} · ${r.duration_ms} ms · ${r.n_queries} queries · pipeline ${(r.versions||{}).pipeline||"—"}</span></div>`).join(""):`<div class="empty">No analyses yet — history is empty.</div>`;
+  $("#ovsc").innerHTML=S.samples.slice(0,4).map(s=>`<div style="padding:6px 0;font-size:12.5px"><a href="#" data-s="${esc(s.name)}">${esc(s.title)}</a> <span style="color:var(--dim)">${s.width||""}×${s.height||""}</span></div>`).join("")||`<div class="empty">No samples found.</div>`;
+  $$("#ovsc a").forEach(a=>a.onclick=e=>{e.preventDefault();runSample(a.dataset.s)});
+  const d=S.data;
+  $("#ovst").innerHTML=d?`<div class="kv"><dt>Session</dt><dd><code>${esc(S.session)}</code></dd><dt>Stages</dt><dd>${Object.entries(d.stages||{}).map(([k,v])=>`${k}: ${v} ms`).join(" · ")||"—"}</dd><dt>Evidence</dt><dd>${d.evidence_count||0} items seeded</dd><dt>Quality</dt><dd>${esc((d.quality||{}).label||"—")}</dd></div>`:`<div class="empty">Idle — no processing running. Analyze a scene to populate this dashboard.</div>`;
 }
-function show(k){
-  if(!S.images[k]) return;
-  S.tab=k;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
-  $('#viewer').innerHTML='';
-  const img=document.createElement('img'); img.src=S.images[k];
-  img.style.cursor='zoom-in'; img.onclick=()=>openModal(img.src);
-  $('#viewer').appendChild(img);
+/* ---------- scenes ---------- */
+function renderScenes(C){
+  C.innerHTML=`<div class="card"><div class="ch">Scene Library — ${S.samples.length} bundled scenes</div><div class="cb">
+  <div class="btnrow" style="margin-bottom:12px"><button class="btn sm" onclick="showView('analyze')">⬆ Upload imagery</button><button class="btn sm ghost" onclick="runSample('delta_t1.png','delta_t2.png')">Load bi-temporal demo pair →</button></div>
+  <div class="sampgrid">${S.samples.map(s=>`<div class="samp" data-s="${esc(s.name)}"><img src="${esc(s.url)}" loading="lazy"/><div><b style="color:var(--txt)">${esc(s.title)}</b><br/>${s.width||"?"}×${s.height||"?"} px${s.size_bytes?" · "+(s.size_bytes/1e6).toFixed(1)+" MB":""}</div></div>`).join("")||'<div class="empty">No samples bundled.</div>'}</div></div></div>`;
+  $$(".samp").forEach(el=>el.onclick=()=>runSample(el.dataset.s));
 }
-function openModal(src){ $('#modalimg').src=src; $('#modal').classList.add('on'); }
-$('#modal').onclick=()=>$('#modal').classList.remove('on');
-
-function renderStats(d){
-  const s=d.scene;
-  let h=`<div class="stats">
-    <div class="st"><div class="v">${s.area_km2.toFixed(2)}</div><div class="l">km² footprint</div></div>
-    <div class="st"><div class="v">${s.gsd}<span style="font-size:11px"> m</span></div><div class="l">GSD</div></div>
-    <div class="st"><div class="v">${d.counts.water_regions}</div><div class="l">water bodies</div></div>
-    <div class="st"><div class="v">${d.counts.linear}</div><div class="l">linear structs</div></div>
-  </div>`;
-  h+=`<div class="phead" style="padding:0 0 8px;border:0">Land-cover composition</div><div class="legend">`;
-  d.legend.forEach(l=>{
-    h+=`<div><div class="lg"><span class="sw" style="background:${l.color}"></span>
-      <span class="nm">${l.label}</span>
-      <span class="vl">${(l.fraction*100).toFixed(1)}% · ${l.area_km2.toFixed(2)} km²</span></div>
-      <div class="bar"><i style="width:${(l.fraction*100).toFixed(1)}%;background:${l.color}"></i></div></div>`;
-  });
-  h+='</div>';
-  h+=`<div class="hint" style="margin-top:12px">Spectral basis: <b>${s.veg_index}</b> ·
-      <b>${s.water_index}</b>${s.has_nir?' · NIR band present':' · no NIR band (RGB proxies)'}<br/>
-      Analysis raster ${s.analysis_width}×${s.analysis_height} px from source ${s.width}×${s.height} px.</div>`;
-  if(d.change){
-    h+=`<div class="phead" style="padding:14px 0 8px;border:0">Change detection</div>
-        <div class="hint">Changed area: <b style="color:var(--warn)">${(d.change.changed_fraction*100).toFixed(1)}%</b><br/>
-        Co-registration: ${d.change.registration}</div>`;
-  }
-  // append into left panel below controls
-  let box=$('#statsbox');
-  if(!box){ box=document.createElement('div'); box.id='statsbox'; box.style.marginTop='16px';
-    document.querySelector('section.panel .pbody').appendChild(box); }
-  box.innerHTML=h;
+/* ---------- analyze ---------- */
+function renderAnalyze(C){
+  const sens=(S.sensors||[]).map(s=>`<option value="${esc(s.sensor)}" ${S.settings.sensor===s.sensor?"selected":""}>${esc(s.sensor)}${s.verified?" ✓ verified":" (planned)"}</option>`).join("");
+  C.innerHTML=`<div class="grid2"><div class="card"><div class="ch">Scene Input</div><div class="cb">
+  <div class="drop" id="d1"><b>Drop scene (T1)</b><br/><span style="color:var(--dim)">PNG / JPG / TIFF · or click to browse</span></div><img id="t1" class="thumb hidden"/><input type="file" id="f1" accept="image/*,.tif,.tiff" hidden/>
+  <label class="f">Optional — second date (T2)</label><div class="drop" id="d2"><b>Drop scene (T2)</b></div><img id="t2i" class="thumb hidden"/><input type="file" id="f2" accept="image/*,.tif,.tiff" hidden/>
+  <div class="row2"><div><label class="f">GSD (m/px)</label><input type="number" id="gsd" value="${S.settings.gsd}" min="0.1" step="0.1"/></div>
+  <div><label class="f">Clusters (k)</label><input type="number" id="kk" value="${S.settings.k}" min="4" max="10"/></div></div>
+  <div class="row2"><div><label class="f">Adaptive k</label><select id="akad"><option value="">Fixed k</option><option value="1" ${S.settings.adaptive?"selected":""}>Adaptive (scene-driven)</option></select></div>
+  <div><label class="f">Sensor hint</label><select id="sens"><option value="">Auto (generic)</option>${sens}</select></div></div>
+  <div class="hint">GSD sets the ground scale of every area &amp; length figure. Sentinel-2 ≈ 10 m, LISS-IV ≈ 5.8 m, Cartosat-2 ≈ 0.65 m.</div>
+  <div class="btnrow" style="margin-top:12px"><button class="btn" id="run" style="flex:1" disabled>Analyze Scene</button></div><div id="aerr"></div>
+  </div></div><div id="anmeta"></div></div>`+viewerHTML();
+  wireDrop("#d1","#f1","#t1","file1","sample1");wireDrop("#d2","#f2","#t2i","file2","sample2");
+  $("#run").onclick=runUpload;renderAnalyzeMeta();mountViewer();
 }
-
-function autoBrief(d){
-  const top=d.legend.slice(0,3).map(l=>`${l.label} ${(l.fraction*100).toFixed(1)}%`).join(', ');
-  let t=`**Scene ingested and analysed in ${d.ms} ms.**\n\n`+
-    `Footprint **${d.scene.area_km2.toFixed(2)} km²** at ${d.scene.gsd} m GSD. `+
-    `Dominant cover: ${top}.\n\nDetected: ${d.counts.water_regions} water bodies, `+
-    `${d.counts.vessels} probable vessels, ${d.counts.linear} linear structures, `+
-    `${d.counts.bright_targets} bright targets.`;
-  if(d.change) t+=`\n\n**Bi-temporal pair loaded** — ${(d.change.changed_fraction*100).toFixed(1)}% of the scene changed. Ask me what changed.`;
-  t+=`\n\nAsk a question below, or tap a suggestion.`;
-  return t;
+function wireDrop(d,i,t,fslot,sslot){const D=$(d),I=$(i),T=$(t);D.onclick=()=>I.click();
+  D.ondragover=e=>{e.preventDefault()};D.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])set(e.dataTransfer.files[0])};
+  I.onchange=()=>{if(I.files[0])set(I.files[0])};
+  function set(f){S[fslot]=f;S[sslot]=null;const r=new FileReader();r.onload=e=>{T.src=e.target.result;T.classList.remove("hidden")};r.readAsDataURL(f);$("#run").disabled=!S.file1&&!S.sample1}}
+function renderAnalyzeMeta(){const el=$("#anmeta");if(!el)return;const d=S.data;
+  if(!d){el.innerHTML=`<div class="card"><div class="ch">Ingestion Report</div><div class="cb"><div class="empty">Run an analysis to see the ingestion report, stage timings and composition.</div></div></div>`;return}
+  const g=d.ingestion||{};
+  el.innerHTML=`<div class="card"><div class="ch">Ingestion Report</div><div class="cb"><div class="kv">
+  <dt>Source</dt><dd>${esc(g.filename||d.scene.name)}</dd><dt>Format</dt><dd>${esc(g.format||"—")} · ${esc(g.bit_depth||"—")}</dd>
+  <dt>Dimensions</dt><dd>${g.width||d.scene.width}×${g.height||d.scene.height} px → analysis ${d.scene.analysis_width}×${d.scene.analysis_height}</dd>
+  <dt>Bands</dt><dd>${g.bands||3} (${esc((g.band_names||[]).join(", ")||"red, green, blue")}) · NIR: ${d.scene.has_nir?"present":"absent"}</dd>
+  <dt>CRS</dt><dd>${esc(g.crs||"Metadata unavailable")}</dd><dt>Geotransform</dt><dd>${esc(g.geotransform||"Metadata unavailable")}</dd>
+  <dt>Nodata</dt><dd>${esc(g.nodata||"Metadata unavailable")}</dd><dt>Resolution</dt><dd>${esc(g.resolution_note||"")}</dd>
+  <dt>Coverage</dt><dd>${esc(g.coverage_note||"")}</dd><dt>Sensor map</dt><dd>${esc(g.sensor_mapping||"generic_rgb")}${g.sensor_verified?" ✓":""}</dd>
+  <dt>Checksum</dt><dd><code>${esc((g.checksum_sha256||"").slice(0,16))}…</code></dd></div>
+  ${(d.warnings||[]).map(w=>`<div class="hint">⚠ ${esc(w)}</div>`).join("")}</div></div>
+  <div class="card" style="margin-top:12px"><div class="ch">Composition &amp; stages (${d.ms} ms)</div><div class="cb">
+  ${(d.legend||[]).map(l=>`<div style="font-size:12px;margin:5px 0"><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${esc(l.color)}"></span> ${esc(l.label)} — <b>${(l.fraction*100).toFixed(1)}%</b> · ${l.area_km2.toFixed(2)} km²<div class="legendbar"><i style="width:${(l.fraction*100).toFixed(1)}%;background:${esc(l.color)}"></i></div></div>`).join("")}
+  <div class="hint">Stages: ${Object.entries(d.stages||{}).map(([k,v])=>`${k} ${v} ms`).join(" · ")} · k used: ${d.k_used}${d.adaptive_k?" (adaptive)":""} · quality: <b>${esc((d.quality||{}).label||"—")}</b></div></div></div>`}
+async function runUpload(){
+  if(!S.file1&&!S.sample1)return;
+  $("#aerr").innerHTML="";$("#c-status").innerHTML='<span class="spin"></span> analysing';$("#run").disabled=true;
+  S.settings.gsd=parseFloat($("#gsd").value)||10;S.settings.k=parseInt($("#kk").value)||7;S.settings.adaptive=$("#akad").value==="1";S.settings.sensor=$("#sens").value;
+  try{let d;
+    if(S.sample1){const fd=new FormData();fd.append("name",S.sample1);if(S.sample2)fd.append("name2",S.sample2);
+      fd.append("gsd",S.settings.gsd);fd.append("k",S.settings.k);fd.append("adaptive_k",S.settings.adaptive?"true":"false");if(S.settings.sensor)fd.append("sensor",S.settings.sensor);
+      d=await api("/api/analyze_sample",{method:"POST",body:fd})}
+    else{const fd=new FormData();fd.append("image",S.file1);if(S.file2)fd.append("image2",S.file2);
+      fd.append("gsd",S.settings.gsd);fd.append("k",S.settings.k);fd.append("adaptive_k",S.settings.adaptive?"true":"false");if(S.settings.sensor)fd.append("sensor",S.settings.sensor);
+      d=await api("/api/analyze",{method:"POST",body:fd})}
+    onNewSession(d);
+  }catch(e){$("#aerr").innerHTML=`<div class="err">${esc(e.message)}</div>`;$("#c-status").textContent="● error"}
+  const rb=$("#run");if(rb)rb.disabled=false;
 }
-
-function renderSugg(hasChange){
-  const c=$('#sugg'); c.innerHTML='';
-  const list=(hasChange?CHANGE_SUGG:[]).concat(DEFAULT_SUGG).slice(0,8);
-  list.forEach(s=>{ const b=document.createElement('div'); b.className='sg'; b.textContent=s;
-    b.onclick=()=>{ $('#q').value=s; ask(); }; c.appendChild(b); });
+async function runSample(n1,n2){
+  toast("Analyzing "+n1+(n2?" + "+n2:"")+"…");$("#c-status").innerHTML='<span class="spin"></span> analysing';
+  try{const fd=new FormData();fd.append("name",n1);if(n2)fd.append("name2",n2);fd.append("gsd",S.settings.gsd);fd.append("k",S.settings.k);
+    fd.append("adaptive_k",S.settings.adaptive?"true":"false");
+    const d=await api("/api/analyze_sample",{method:"POST",body:fd});onNewSession(d)}catch(e){toast("Analysis failed: "+e.message);$("#c-status").textContent="● error"}
 }
+function onNewSession(d){
+  S.data=d;S.session=d.session;S.tab=d.images.landcover?"landcover":"original";S.indices=null;S.objects=null;S.evidence=[];S.queries=[];
+  S.z=1;S.tx=0;S.ty=0;S.measure=[];S.markers=[];S.reportHtml="";
+  $("#c-sess").textContent="session "+d.session;$("#c-geo").textContent=d.georeferenced?"GEOREFERENCED":"IMAGE-SPACE";
+  $("#c-geo").className="chip "+(d.georeferenced?"geo":"warn");
+  $("#c-status").textContent="● analysed in "+d.ms+" ms";
+  $("#q").disabled=false;$("#send").disabled=false;$("#chat").innerHTML="";
+  const top=(d.legend||[]).slice(0,3).map(l=>`${l.label} ${(l.fraction*100).toFixed(1)}%`).join(", ");
+  addAI(`**Scene ingested and analysed in ${d.ms} ms.**\n\nFootprint **${d.scene.area_km2.toFixed(2)} km²** at ${d.scene.gsd} m GSD. Dominant cover: ${top}.\n\nDetected: ${d.counts.water_regions} water bodies, ${d.counts.vessels} probable vessels, ${d.counts.linear} linear structures, ${d.counts.bright_targets} bright targets.${d.change?`\n\n**Bi-temporal pair loaded** — ${(d.change.changed_fraction*100).toFixed(1)}% changed (severity ${d.change.severity}). Ask what changed.`:""}\n\nAsk a question below, or tap a suggestion.`,null,{intent:"auto-brief",confidence:null});
+  renderSugg(!!d.change);showView(S.view==="overview"?"overview":S.view);refreshEvidence();
+  if(S.view==="landing")showView("analyze");
+}
+async function refreshEvidence(){if(!S.session)return;try{const r=(await jget(`/api/evidence?session=${S.session}`)).data;S.evidence=r.evidence||[];S.queries=r.queries||[]}catch(e){}}
+/* ---------- compare ---------- */
+function renderCompare(C){
+  if(needSession(C))return;const d=S.data;
+  if(!d.images.t2){C.innerHTML=`<div class="card"><div class="cb"><div class="empty"><b style="color:var(--txt)">Single-date session.</b><br/>Load a second date (T2) to enable before/after comparison.<br/><br/><button class="btn sm" onclick="showView('analyze')">Go to Analyze</button></div></div></div>`;return}
+  C.innerHTML=`<div class="card"><div class="ch">Before / After — drag the slider</div><div class="cb">
+  <div class="cmp"><img src="${d.images.original}"/><img class="top" id="cmpTop" src="${d.images.t2}"/>
+  <span class="dl" style="left:10px">T1</span><span class="dl" style="right:10px">T2</span></div>
+  <input type="range" id="cmpr" min="0" max="100" value="50" style="width:100%;margin-top:10px"/></div></div>
+  <div class="card"><div class="ch">Side-by-side class areas</div><div class="cb" id="cmpstat"><span class="spin"></span> computing…</div></div>`;
+  $("#cmpr").oninput=e=>{$("#cmpTop").style.clipPath=`inset(0 ${100-e.target.value}% 0 0)`};
+  (async()=>{try{const r=await api("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:S.session,query:"Compare the land cover between the two dates"})});
+    $("#cmpstat").innerHTML=md(r.answer)+`<div class="meta"><span class="pill i">intent: ${esc(r.intent)}</span></div>`}catch(e){$("#cmpstat").innerHTML=`<div class="err">${esc(e.message)}</div>`}})();
+}
+/* ---------- change ---------- */
+function renderChange(C){
+  if(needSession(C))return;const d=S.data;
+  if(!d.change){C.innerHTML=`<div class="card"><div class="cb"><div class="empty"><b style="color:var(--txt)">No change data.</b><br/>This session has a single date. Load a T2 scene to run bi-temporal change detection.</div></div></div>`;return}
+  const ch=d.change;
+  C.innerHTML=viewerHTML()+`<div class="card"><div class="ch">Change Summary</div><div class="cb">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="sev ${esc(ch.severity||"MEDIUM")}">${esc(ch.severity||"—")}</span>
+  <span style="font-size:15px"><b>${(ch.changed_fraction*100).toFixed(2)}%</b> of scene changed</span></div>
+  <div class="hint">Registration: ${esc(ch.registration)} · Histogram-matched: ${ch.quality&&ch.quality.histogram_matched?"yes":"no"}</div>
+  <div class="grid2" style="margin-top:12px"><div><h4 style="margin:0 0 6px;font-size:12px">DOMINANT TRANSITIONS</h4>
+  <table class="t"><tr><th>From → To</th><th style="text-align:right">Area</th></tr>${(ch.transitions||[]).slice(0,8).map(t=>`<tr><td>${esc(t.from_label)} → ${esc(t.to_label)}</td><td style="text-align:right">${t.area_km2} km²</td></tr>`).join("")||"<tr><td colspan=2>None above threshold.</td></tr>"}</table></div>
+  <div><h4 style="margin:0 0 6px;font-size:12px">HOTSPOTS</h4>
+  <table class="t"><tr><th>#</th><th>BBox</th><th style="text-align:right">Area</th><th>Sev</th></tr>${(ch.hotspots||[]).map((h,i)=>`<tr><td>H${i+1}</td><td><code>${h.bbox.join(",")}</code></td><td style="text-align:right">${h.area_km2} km²</td><td>${esc(h.severity)}</td></tr>`).join("")||"<tr><td colspan=4>None.</td></tr>"}</table></div></div>
+  <h4 style="font-size:12px;margin:12px 0 6px">PER-CLASS DELTAS (T2 − T1, km²)</h4>
+  <table class="t"><tr>${Object.keys(ch.deltas||{}).map(k=>`<th>${esc(k)}</th>`).join("")}</tr><tr>${Object.values(ch.deltas||{}).map(v=>`<td>${v}</td>`).join("")}</tr></table></div></div>`;
+  S.tab="change";mountViewer();
+}
+/* ---------- land cover ---------- */
+function renderLandcover(C){
+  if(needSession(C))return;const d=S.data,q=d.quality||{};
+  C.innerHTML=viewerHTML()+`<div class="card"><div class="ch">Land-Cover Intelligence <span class="pill ${q.label==="HIGH"?"c":q.label==="MODERATE"?"i":"w"}" style="margin-left:auto">${esc(q.label||"—")}</span></div><div class="cb">
+  ${(d.legend||[]).map(l=>`<div style="font-size:12.5px;margin:6px 0"><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${esc(l.color)}"></span> ${esc(l.label)} — <b>${(l.fraction*100).toFixed(1)}%</b> · ${l.area_km2.toFixed(3)} km²<div class="legendbar"><i style="width:${(l.fraction*100).toFixed(1)}%;background:${esc(l.color)}"></i></div></div>`).join("")}
+  <div class="hint">Classes are <b>algorithmically inferred</b> (k-means + physics rules), not ground-truth validated. Quality rules: ${(q.rules||[]).join("; ")||"none fired"}. Mean confidence ${(q.mean_confidence==null?"—":q.mean_confidence)}.</div>
+  <h4 style="font-size:12px;margin:14px 0 6px">CLUSTER SIGNATURES</h4>
+  <table class="t"><tr><th>#</th><th>Assigned</th><th style="text-align:right">Fraction</th><th style="text-align:right">Conf</th><th>Top scores</th></tr>
+  ${(d.clusters||[]).map(c=>`<tr><td>${c.cluster}</td><td>${esc(c.assigned_label)}</td><td style="text-align:right">${(c.fraction*100).toFixed(1)}%</td><td style="text-align:right">${c.confidence}</td><td><code>${esc(Object.entries(c.scores||{}).map(([k,v])=>k+":"+v).join(" "))}</code></td></tr>`).join("")}</table></div></div>`;
+  mountViewer();
+}
+/* ---------- spectral ---------- */
+async function renderSpectral(C){
+  if(needSession(C))return;
+  C.innerHTML=`<div class="card"><div class="ch">Spectral Indices</div><div class="cb" id="specbox"><span class="spin"></span> loading…</div></div>`;
+  try{if(!S.indices)S.indices=(await jget(`/api/indices?session=${S.session}`)).data.indices}catch(e){$("#specbox").innerHTML=`<div class="err">${esc(e.message)}</div>`;return}
+  const idx=S.indices||[];
+  $("#specbox").innerHTML=`<label class="f" style="margin-top:0">Index</label><select id="idxsel">${idx.map((v,i)=>`<option value="${i}">${esc(v.name)}${v.available?"":" — unavailable"}</option>`).join("")}</select><div id="idxdet" style="margin-top:12px"></div>`;
+  const show=i=>{const v=idx[i];const s=v.stats||{};
+    $("#idxdet").innerHTML=`<div class="kv"><dt>Formula</dt><dd><code>${esc(v.formula)}</code></dd><dt>Required bands</dt><dd>${v.required_bands.join(", ")}</dd>
+<dt>Status</dt><dd>${v.available?'<span class="pill c">MEASURED</span>':'<span class="pill">UNAVAILABLE</span> '+esc(v.reason)}</dd>
+<dt>Description</dt><dd>${esc(v.description)}</dd></div>
+${v.available?`<table class="t" style="margin-top:10px"><tr><th>min</th><th>max</th><th>mean</th><th>median</th><th>std</th><th>p5–p95</th></tr><tr><td>${s.min}</td><td>${s.max}</td><td>${s.mean}</td><td>${s.median}</td><td>${s.std}</td><td>${s.p5} – ${s.p95}</td></tr></table><canvas class="hist" id="hist" width="640" height="150"></canvas>`:""}`;
+    if(v.available&&v.histogram&&v.histogram.counts.length)drawHist($("#hist"),v.histogram)};
+  $("#idxsel").onchange=e=>show(parseInt(e.target.value));show(0);
+}
+function drawHist(cv,h){const ctx=cv.getContext("2d");ctx.clearRect(0,0,cv.width,cv.height);
+  const mx=Math.max(...h.counts,1),bw=cv.width/h.counts.length;
+  ctx.fillStyle="#4da3ff";h.counts.forEach((c,i)=>{const bh=c/mx*(cv.height-24);ctx.fillRect(i*bw+1,cv.height-16-bh,Math.max(1,bw-2),bh)});
+  ctx.fillStyle="#8ea0bd";ctx.font="10px sans-serif";ctx.fillText(h.edges[0],4,cv.height-3);ctx.fillText(h.edges[h.edges.length-1],cv.width-44,cv.height-3)}
+/* ---------- objects ---------- */
+async function renderObjects(C){
+  if(needSession(C))return;
+  C.innerHTML=viewerHTML()+`<div class="card"><div class="ch">Object Intelligence</div><div class="cb" id="objbox"><span class="spin"></span> loading…</div></div>`;mountViewer();
+  try{if(!S.objects)S.objects=(await jget(`/api/objects?session=${S.session}`)).data}catch(e){$("#objbox").innerHTML=`<div class="err">${esc(e.message)}</div>`;return}
+  const F=S.objects.families||{};
+  $("#objbox").innerHTML=`<div class="hint" style="margin:0 0 10px">${esc(S.objects.confidence_note||"")} Scores are heuristic, not calibrated probabilities.</div>
+  <label class="f" style="margin-top:0">Family</label><select id="famsel">${Object.keys(F).map(k=>`<option value="${k}">${k} (${(F[k].detections||[]).length})</option>`).join("")}</select><div id="famdet" style="margin-top:10px"></div>`;
+  const show=k=>{const f=F[k]||{},rows=(f.detections||[]).slice(0,60);
+    $("#famdet").innerHTML=`${f.stats?`<div class="hint">n=${f.stats.n}${f.stats.length_m?` · length ${f.stats.length_m.min}–${f.stats.length_m.max} m (median ${f.stats.length_m.median})`:""}${f.stats.area_m2?` · area median ${f.stats.area_m2.median} m²`:""}</div>`:""}
+    <table class="t"><tr><th>ID</th><th>BBox</th><th>Centroid</th><th style="text-align:right">Area</th><th style="text-align:right">Score</th><th>Method</th></tr>
+    ${rows.map(r=>`<tr><td><code>${esc(r.id)}</code></td><td><code>${r.bbox.join(",")}</code></td><td>${r.centroid.join(", ")}</td><td style="text-align:right">${r.area_m2} m²</td><td style="text-align:right">${r.confidence}</td><td style="font-size:10.5px">${esc(r.source_method)}</td></tr>`).join("")||"<tr><td colspan=6>None detected.</td></tr>"}</table>
+    ${((f.detections||[]).length>60)?`<div class="hint">Showing 60 of ${(f.detections||[]).length}.</div>`:""}`};
+  $("#famsel").onchange=e=>show(e.target.value);show(Object.keys(F)[0]);
+}
+/* ---------- evidence ---------- */
+async function renderEvidence(C){
+  if(needSession(C))return;await refreshEvidence();
+  C.innerHTML=`<div class="card"><div class="ch">Evidence Graph — ${S.evidence.length} items</div><div class="cb">
+  <table class="t"><tr><th>ID</th><th>Type</th><th>Item</th><th>Value</th><th>Method</th></tr>
+  ${S.evidence.map(e=>{let v=e.value;if(typeof v==="object")v=JSON.stringify(v).slice(0,160);
+  return `<tr><td><code>${esc(e.evidence_id)}</code></td><td><span class="pill ${e.type==="limitation"?"w":"i"}">${esc(e.type)}</span></td><td>${esc(e.note||e.source)}</td><td><code>${esc(v)}</code>${e.unit?" "+esc(e.unit):""}${e.confidence!=null?` (${(e.confidence*100).toFixed(0)}%)`:""}</td><td style="font-size:10.5px">${esc(e.method)}</td></tr>`}).join("")||"<tr><td colspan=5>None.</td></tr>"}</table>
+  <h4 style="font-size:12px;margin:14px 0 6px">QUERY LOG</h4>
+  <table class="t"><tr><th>Query</th><th>Intent</th><th style="text-align:right">Conf</th><th style="text-align:right">Latency</th></tr>
+  ${S.queries.map(q=>`<tr><td>${esc(q.query)}</td><td><code>${esc(q.intent)}</code></td><td style="text-align:right">${q.confidence==null?"—":q.confidence}</td><td style="text-align:right">${q.ms} ms</td></tr>`).join("")||"<tr><td colspan=4>No queries yet.</td></tr>"}</table></div></div>`;
+}
+/* ---------- reports ---------- */
+function renderReports(C){
+  if(needSession(C))return;
+  C.innerHTML=`<div class="card"><div class="ch">Report Generator</div><div class="cb">
+  <div class="btnrow"><button class="btn sm" id="genrep">Generate Report</button><button class="btn sm ghost" id="dlrep" disabled>Download HTML</button><button class="btn sm ghost" id="printrep" disabled>Print / PDF</button></div>
+  <div class="hint">The report distinguishes MEASURED / INFERRED / UNAVAILABLE / LIMITATION and includes methodology, evidence and reproducibility data.</div>
+  <div id="repbox" style="margin-top:12px"><div class="empty">No report generated yet.</div></div></div></div>`;
+  $("#genrep").onclick=async()=>{$("#repbox").innerHTML='<span class="spin"></span> generating…';
+    try{const r=await fetch(`/api/report?session=${S.session}`);S.reportHtml=await r.text();
+      $("#repbox").innerHTML=`<iframe id="repif" style="width:100%;height:520px;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>`;
+      $("#repif").srcdoc=S.reportHtml;$("#dlrep").disabled=false;$("#printrep").disabled=false}catch(e){$("#repbox").innerHTML=`<div class="err">${esc(e.message)}</div>`}};
+  $("#dlrep").onclick=()=>{const b=new Blob([S.reportHtml],{type:"text/html"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="satquery-report.html";a.click()};
+  $("#printrep").onclick=()=>{const f=$("#repif");if(f)f.contentWindow.print()};
+}
+/* ---------- history ---------- */
+async function renderHistory(C){
+  C.innerHTML=`<div class="card"><div class="ch">Analysis History</div><div class="cb" id="histbox"><span class="spin"></span> loading…</div></div>`;
+  try{S.history=(await jget("/api/history")).data.records||[]}catch(e){$("#histbox").innerHTML=`<div class="err">${esc(e.message)}</div>`;return}
+  if(!S.history.length){$("#histbox").innerHTML=`<div class="empty">No saved analyses yet. Every analysis is recorded here automatically.</div>`;return}
+  $("#histbox").innerHTML=`<table class="t"><tr><th>Label</th><th>Time</th><th style="text-align:right">Duration</th><th style="text-align:right">Q/E</th><th>Pipeline</th><th>Actions</th></tr>
+  ${S.history.map(r=>`<tr><td><b>${esc(r.label||r.analysis_id)}</b><br/><code>${esc(r.analysis_id)}</code></td><td style="font-size:11px">${new Date(r.timestamp*1000).toLocaleString()}</td><td style="text-align:right">${r.duration_ms} ms</td><td style="text-align:right">${r.n_queries}/${r.n_evidence}</td><td><code>${esc((r.versions||{}).pipeline||"—")}</code></td>
+  <td style="white-space:nowrap"><button class="vbtn" data-a="open" data-id="${esc(r.analysis_id)}">Open</button> <button class="vbtn" data-a="dup" data-id="${esc(r.analysis_id)}">Duplicate</button> <button class="vbtn" data-a="exp" data-id="${esc(r.analysis_id)}">Export</button> <button class="vbtn" data-a="rep" data-id="${esc(r.analysis_id)}">Reproduce</button> <button class="vbtn" data-a="del" data-id="${esc(r.analysis_id)}">Delete</button></td></tr>`).join("")}</table>
+  <div class="hint">Records store parameters, checksums, results and evidence — not pixels. “Reproduce” re-runs the deterministic pipeline from stored inputs.</div>`;
+  $$("#histbox [data-a]").forEach(b=>b.onclick=()=>histAction(b.dataset.a,b.dataset.id));
+}
+async function histAction(a,id){
+  if(a==="del"){if(!confirm("Delete this record?"))return;await api(`/api/history/${id}`,{method:"DELETE"});toast("Deleted");return renderHistory($("#center"))}
+  if(a==="dup"){await api(`/api/history/${id}/duplicate`,{method:"POST"});toast("Duplicated");return renderHistory($("#center"))}
+  if(a==="exp"){const r=(await jget(`/api/history/${id}`)).data.record;const b=new Blob([JSON.stringify(r,null,1)],{type:"application/json"});const l=document.createElement("a");l.href=URL.createObjectURL(b);l.download=id+".json";l.click();return}
+  if(a==="open"){const r=(await jget(`/api/history/${id}`)).data.record;
+    modal(`<div class="card"><div class="ch">Record ${esc(id)}</div><div class="cb"><div class="kv"><dt>Label</dt><dd>${esc(r.label||"")}</dd><dt>Time</dt><dd>${new Date(r.timestamp*1000).toLocaleString()}</dd><dt>Params</dt><dd><code>${esc(JSON.stringify(r.params||{}))}</code></dd><dt>Results</dt><dd><code>${esc(JSON.stringify(r.results||{}).slice(0,400))}</code></dd><dt>Evidence</dt><dd>${(r.evidence||[]).length} items · Queries: ${(r.queries||[]).length}</dd></div><div class="btnrow" style="margin-top:12px"><button class="btn sm" onclick="document.querySelector('#modal').classList.remove('on')">Close</button></div><div class="hint">Full record available via Export. Pixel sessions expire; use Reproduce to rebuild.</div></div></div>`);return}
+  if(a==="rep"){toast("Reproducing "+id+"…");try{const d=await api(`/api/history/${id}/reproduce`,{method:"POST"});onNewSession(d);toast("Reproduced from "+id)}catch(e){toast("Reproduce failed: "+e.message)}}
+}
+/* ---------- settings ---------- */
+async function renderSettings(C){
+  const v=S.version||{};
+  C.innerHTML=`<div class="grid2"><div class="card"><div class="ch">Analysis Defaults</div><div class="cb">
+  <div class="row2"><div><label class="f">GSD (m/px)</label><input type="number" id="sg" value="${S.settings.gsd}"/></div>
+  <div><label class="f">Clusters (k)</label><input type="number" id="sk" value="${S.settings.k}" min="4" max="10"/></div></div>
+  <div class="row2"><div><label class="f">Adaptive k</label><select id="sa"><option value="">Fixed</option><option value="1" ${S.settings.adaptive?"selected":""}>Adaptive</option></select></div>
+  <div><label class="f">Sensor hint</label><select id="ss"><option value="">Auto</option>${(S.sensors||[]).map(s=>`<option value="${esc(s.sensor)}" ${S.settings.sensor===s.sensor?"selected":""}>${esc(s.sensor)}${s.verified?" ✓":""}</option>`).join("")}</select></div></div>
+  <div class="btnrow" style="margin-top:12px"><button class="btn sm" id="ssave">Save defaults</button></div>
+  <h4 style="font-size:12px;margin:16px 0 6px">SENSOR SUPPORT</h4>
+  <table class="t"><tr><th>Sensor</th><th>Bands</th><th>Status</th></tr>${(S.sensors||[]).map(s=>`<tr><td>${esc(s.sensor)}</td><td style="font-size:11px">${esc((s.bands||[]).join(", "))}</td><td>${s.verified?'<span class="pill c">verified</span>':'<span class="pill">planned</span>'}</td></tr>`).join("")}</table>
+  <h4 style="font-size:12px;margin:16px 0 6px">REASONING PROVIDERS</h4>
+  <table class="t"><tr><th>Provider</th><th>Available</th></tr>${(S.providers||[]).map(p=>`<tr><td>${esc(p.name)}</td><td>${p.available?'<span class="pill c">yes</span>':'<span class="pill">no</span>'}</td></tr>`).join("")}</table>
+  <div class="hint">The deterministic pipeline is always authoritative; providers only rephrase supplied evidence.</div></div></div>
+  <div><div class="card"><div class="ch">Benchmark (measured live)</div><div class="cb">
+  <div class="btnrow"><button class="btn sm" id="runbench">Run benchmark</button></div>
+  <div class="hint">Runs the full pipeline plus fixed queries on the bundled demo pair and reports real timings from this host. Nothing is shown until measured.</div>
+  <div id="benchbox" style="margin-top:10px">${S.bench?benchHTML():'<div class="empty">No benchmark run yet.</div>'}</div></div></div>
+  <div class="card" style="margin-top:12px"><div class="ch">About</div><div class="cb"><div class="kv">
+  <dt>Product</dt><dd>SatQuery AI</dd><dt>Version</dt><dd>${esc(v.version||"—")} (pipeline ${esc(v.pipeline_version||"—")}, build ${esc(v.build||"—")})</dd>
+  <dt>Algorithms</dt><dd><code>${esc(JSON.stringify(v.algorithms||{}))}</code></dd>
+  <dt>Mode</dt><dd>Fully offline · no API keys · deterministic (seed 42)</dd></div></div></div></div></div>`;
+  $("#ssave").onclick=()=>{S.settings.gsd=parseFloat($("#sg").value)||10;S.settings.k=parseInt($("#sk").value)||7;S.settings.adaptive=$("#sa").value==="1";S.settings.sensor=$("#ss").value;toast("Defaults saved")};
+  $("#runbench").onclick=async()=>{$("#benchbox").innerHTML='<span class="spin"></span> running…';
+    try{S.bench=(await api("/api/benchmark",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})).data;$("#benchbox").innerHTML=benchHTML()}catch(e){$("#benchbox").innerHTML=`<div class="err">${esc(e.message)}</div>`}};
+}
+function benchHTML(){const b=S.bench;return `<table class="t"><tr><th>Stage</th><th style="text-align:right">ms</th></tr>
+${Object.entries(b.stages_ms||{}).map(([k,v])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${v}</td></tr>`).join("")}
+<tr><td><b>total</b></td><td style="text-align:right"><b>${b.total_ms}</b></td></tr></table>
+<h4 style="font-size:12px;margin:10px 0 6px">QUERY LATENCY</h4><table class="t">${Object.entries(b.query_latency_ms||{}).map(([k,v])=>`<tr><td style="font-size:11px">${esc(k)}</td><td style="text-align:right">${v} ms</td></tr>`).join("")}</table>
+<div class="hint">Image ${b.image.width}×${b.image.height} → ${b.image.analysis_width}×${b.image.analysis_height} (${b.image.pixels} px) · peak RSS ${b.memory.peak_rss_mb} MB · ${esc(b.sample)}${b.sample2?" + "+esc(b.sample2):""}</div>`}
 
 /* ---------- chat ---------- */
-function md(t){
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
-    .replace(/`(.+?)`/g,'<code>$1</code>')
-    .replace(/^- (.+)$/gm,'• $1')
-    .replace(/\n/g,'<br/>');
-}
-function addMe(t){
-  const d=document.createElement('div'); d.className='msg me'; d.textContent=t;
-  $('#chat').appendChild(d); $('#chat').scrollTop=1e9;
-}
-function addAI(text, ov, m){
-  const d=document.createElement('div'); d.className='msg ai';
-  let h=md(text);
-  h+='<div class="meta">';
-  if(m.intent) h+=`<span class="pill i">intent: ${m.intent}</span>`;
-  if(m.entities&&m.entities.length) h+=`<span class="pill">entities: ${m.entities.join(', ')}</span>`;
-  if(m.objects&&m.objects.length) h+=`<span class="pill">objects: ${m.objects.join(', ')}</span>`;
-  if(m.confidence!=null){
-    const c=m.confidence, cls=c>=0.7?'c':(c>=0.5?'':'w');
-    h+=`<span class="pill ${cls}">confidence ${(c*100).toFixed(0)}%</span>`;
-  }
-  if(m.ms!=null) h+=`<span class="pill">${m.ms} ms</span>`;
-  h+='</div>';
-  if(m.evidence&&m.evidence.length){
-    h+='<details class="ev"><summary>▸ Evidence — how this was computed</summary>';
-    m.evidence.forEach(e=>{
-      let v=e.value;
-      if(typeof v==='object') v=JSON.stringify(v);
-      h+=`<div class="evrow"><span class="k">${e.metric}</span><span>${v}</span>
-          <span class="m">${e.method}</span></div>`;
-    });
-    h+='</details>';
-  }
-  if(ov) h+=`<img class="ovthumb" src="${ov}"/>`;
-  d.innerHTML=h;
-  if(ov) d.querySelector('.ovthumb').onclick=()=>openModal(ov);
-  $('#chat').appendChild(d); $('#chat').scrollTop=1e9;
-}
-
-$('#send').onclick=ask;
-$('#q').onkeydown=e=>{ if(e.key==='Enter') ask(); };
+const DSUGG=["Describe this scene","How much of the area is water?","Where is the built-up area?","How many water bodies are there?","Are there any ships?","Count the roads","What is the vegetation cover?","What is the NDVI here?","Show the evidence behind this result"];
+const CSUG=["What changed between the two dates?","Did vegetation decrease?","Has the built-up area expanded?","Compare the land cover between the two dates"];
+function renderSugg(hasChange){const c=$("#sugg");c.innerHTML="";((hasChange?CSUG:[]).concat(DSUGG)).slice(0,9).forEach(s=>{const b=document.createElement("div");b.className="sg";b.textContent=s;b.onclick=()=>{$("#q").value=s;ask()};c.appendChild(b)})}
+function addMe(t){const d=document.createElement("div");d.className="msg me";d.textContent=t;$("#chat").appendChild(d);$("#chat").scrollTop=1e9}
+function addAI(text,ov,m){const d=document.createElement("div");d.className="msg ai";let h=md(text);h+='<div class="meta">';
+  if(m.intent)h+=`<span class="pill i">intent: ${esc(m.intent)}</span>`;
+  if(m.plan){h+=`<span class="pill">target: ${esc(m.plan.target||"")}</span><span class="pill">op: ${esc(m.plan.operation||"")}</span>`}
+  if(m.entities&&m.entities.length)h+=`<span class="pill">entities: ${esc(m.entities.join(", "))}</span>`;
+  if(m.objects&&m.objects.length)h+=`<span class="pill">objects: ${esc(m.objects.join(", "))}</span>`;
+  if(m.confidence!=null){const c=m.confidence;h+=`<span class="pill ${c>=0.7?"c":c>=0.5?"":"w"}">confidence ${(c*100).toFixed(0)}%</span>`}
+  if(m.ms!=null)h+=`<span class="pill">${m.ms} ms</span>`;h+='</div>';
+  if(m.plan&&(m.plan.tools||[]).length)h+=`<details class="ev"><summary>▸ Plan — interpretation → tools → evidence</summary><div class="evrow"><span class="k">tools</span><span>${esc(m.plan.tools.join(", "))}</span><span class="m">required evidence: ${esc((m.plan.required_evidence||[]).join(", "))}</span></div></details>`;
+  if(m.steps)h+=`<details class="ev" open><summary>▸ Pipeline trace — what the system did</summary>${m.steps.map((s,i)=>`<div class="evrow"><span class="k">step ${i+1}</span><span>${esc(s)}</span></div>`).join("")}</details>`;
+  if(m.reasoning&&!m.reasoning.refused)h+=`<details class="ev"><summary>▸ Grounded interpretation (cites evidence IDs)</summary><div style="font-size:12px">${md(m.reasoning.text||"")}</div></details>`;
+  const ev=m.evidence_v2&&m.evidence_v2.length?m.evidence_v2:m.evidence;
+  if(ev&&ev.length){h+='<details class="ev"><summary>▸ Evidence — how this was computed</summary>';
+    ev.forEach(e=>{let v=e.value==null?"":e.value;if(typeof v==="object")v=JSON.stringify(v).slice(0,200);
+      const id=e.evidence_id?`[${esc(e.evidence_id)}] `:"";const k=e.note||e.metric||e.type||"";
+      h+=`<div class="evrow"><span class="k">${id}${esc(k)}</span><span>${esc(v)}${e.unit?" "+esc(e.unit):""}</span><span class="m">${esc(e.method||"")}</span></div>`});h+='</details>'}
+  if(ov)h+=`<img class="ovthumb" src="${ov}"/>`;d.innerHTML=h;
+  if(ov)d.querySelector(".ovthumb").onclick=()=>modal(`<img src="${ov}"/>`);
+  $("#chat").appendChild(d);$("#chat").scrollTop=1e9}
 async function ask(){
-  const q=$('#q').value.trim(); if(!q||!S.session) return;
-  addMe(q); $('#q').value=''; $('#send').disabled=true;
-  const load=document.createElement('div'); load.className='msg ai';
-  load.innerHTML='<span class="spin"></span> reasoning over scene evidence…';
-  $('#chat').appendChild(load); $('#chat').scrollTop=1e9;
+  const q=$("#q").value.trim();if(!q||!S.session)return;addMe(q);$("#q").value="";$("#send").disabled=true;
+  const load=document.createElement("div");load.className="msg ai";load.innerHTML='<span class="spin"></span> reasoning over scene evidence…';$("#chat").appendChild(load);
   try{
-    const r=await fetch('/api/query',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({session:S.session,query:q})});
-    const d=await r.json();
-    load.remove();
-    if(!r.ok){ addAI('⚠️ '+(d.detail||'query failed'),null,{intent:'error'}); }
-    else{
-      addAI(d.answer,d.overlay_image,{intent:d.intent,entities:d.entities,objects:d.objects,
-            confidence:d.confidence,evidence:d.evidence,ms:d.ms});
-      if(d.overlay_image){ S.images.answer=d.overlay_image;
-        if(!document.querySelector('.tab[data-k="answer"]')){
-          const b=document.createElement('div'); b.className='tab'; b.dataset.k='answer';
-          b.textContent='Query Overlay'; b.onclick=()=>show('answer'); $('#tabs').appendChild(b);
-        }
-        show('answer');
-      }
-    }
-  }catch(e){ load.remove(); addAI('⚠️ '+e.message,null,{intent:'error'}); }
-  $('#send').disabled=false; $('#q').focus();
+    if(S.explain){const r=(await api("/api/explain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:S.session,query:q})})).data;
+      load.remove();addAI(r.answer,r.overlay_image,{intent:r.intent,plan:r.plan,steps:r.steps,reasoning:r.reasoning,evidence_v2:r.evidence_v2,confidence:r.confidence,ms:r.ms});overlayAnswer(r.overlay_image)}
+    else{const r=await api("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:S.session,query:q})});
+      load.remove();addAI(r.answer,r.overlay_image,{intent:r.intent,plan:r.plan,entities:r.entities,objects:r.objects,evidence:r.evidence,evidence_v2:r.evidence_v2,confidence:r.confidence,ms:r.ms});overlayAnswer(r.overlay_image)}
+    refreshEvidence();
+  }catch(e){load.remove();addAI("⚠️ "+e.message,null,{intent:"error"})}
+  $("#send").disabled=false;$("#q").focus();
 }
+function overlayAnswer(ov){if(!ov||!S.data)return;S.data.images.answer=ov;if(S.tab!=="answer"){S.tab="answer";if(["analyze","change","landcover","objects"].includes(S.view))mountViewer()}}
+document.addEventListener("DOMContentLoaded",init);
 </script>
 </body>
 </html>

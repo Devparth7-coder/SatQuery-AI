@@ -189,3 +189,174 @@ def cluster_matrix(fs: FeatureStack) -> np.ndarray:
     m = np.stack([l.ravel() for l in layers], axis=1).astype(np.float32)
     mu, sd = m.mean(0), m.std(0) + EPS
     return (m - mu) / sd
+
+
+# --------------------------------------------------------------------------- #
+# v2: multi-index spectral engine (additive — existing API unchanged)
+# --------------------------------------------------------------------------- #
+from dataclasses import dataclass as _dataclass2  # noqa: E402
+from typing import Any as _Any, Dict as _Dict, List as _List  # noqa: E402
+
+
+@_dataclass2
+class IndexResult:
+    """One spectral index: formula, band requirements and measured stats.
+
+    When required bands are missing the result is returned with
+    ``available=False`` and a human-readable ``reason`` — the pipeline
+    never substitutes an unrelated band.
+    """
+
+    name: str
+    formula: str
+    required_bands: _List[str]
+    available: bool
+    reason: str = ""
+    value_range: tuple = (-1.0, 1.0)
+    description: str = ""
+    stats: dict = None  # type: ignore
+    histogram: dict = None  # type: ignore
+
+    def to_dict(self) -> _Dict[str, _Any]:
+        return {
+            "name": self.name, "formula": self.formula,
+            "required_bands": self.required_bands,
+            "available": self.available, "reason": self.reason,
+            "value_range": list(self.value_range),
+            "description": self.description,
+            "stats": self.stats or {}, "histogram": self.histogram or {},
+        }
+
+
+INDEX_DEFS: _Dict[str, _Dict[str, _Any]] = {
+    "NDVI": {"formula": "(NIR - RED) / (NIR + RED)",
+             "required_bands": ["nir", "red"],
+             "description": "Normalised Difference Vegetation Index; "
+                            "vigorous canopy is strongly positive."},
+    "NDWI": {"formula": "(GREEN - NIR) / (GREEN + NIR)",
+             "required_bands": ["green", "nir"],
+             "description": "McFeeters NDWI; open water is positive."},
+    "MNDWI": {"formula": "(GREEN - SWIR1) / (GREEN + SWIR1)",
+              "required_bands": ["green", "swir1"],
+              "description": "Modified NDWI; suppresses built-up noise. "
+                             "Needs SWIR."},
+    "NDBI": {"formula": "(SWIR1 - NIR) / (SWIR1 + NIR)",
+             "required_bands": ["swir1", "nir"],
+             "description": "Normalised Difference Built-up Index. Needs SWIR."},
+    "SAVI": {"formula": "((NIR - RED) / (NIR + RED + 0.5)) * 1.5",
+             "required_bands": ["nir", "red"],
+             "description": "Soil-Adjusted Vegetation Index (L=0.5); "
+                            "stable over sparse canopy."},
+    "EVI": {"formula": "2.5*(NIR - RED) / (NIR + 6*RED - 7.5*BLUE + 1)",
+            "required_bands": ["nir", "red", "blue"],
+            "description": "Enhanced Vegetation Index; resists atmospheric "
+                           "and canopy-background noise."},
+    "GNDVI": {"formula": "(NIR - GREEN) / (NIR + GREEN)",
+              "required_bands": ["nir", "green"],
+              "description": "Green NDVI; sensitive to chlorophyll content."},
+    "VARI": {"formula": "(GREEN - RED) / (GREEN + RED - BLUE)",
+             "required_bands": ["green", "red", "blue"],
+             "description": "Visible Atmospherically Resistant Index; "
+                            "RGB-only vegetation proxy."},
+    "ExG": {"formula": "2*GREEN - RED - BLUE",
+            "required_bands": ["green", "red", "blue"],
+            "description": "Excess Green; RGB-only greenness cue."},
+    "water_proxy": {"formula": "(BLUE - RED) / (BLUE + RED)",
+                    "required_bands": ["blue", "red"],
+                    "description": "Blue-Red water proxy for RGB-only input; "
+                                   "turbid water can be missed."},
+}
+
+
+def index_stats(arr: np.ndarray, bins: int = 40) -> tuple:
+    """Robust stats + histogram for one index array (NaN-safe)."""
+    a = np.asarray(arr, dtype=np.float64)
+    a = a[np.isfinite(a)]
+    if a.size == 0:
+        return {}, {"counts": [], "edges": []}
+    lo, hi = float(a.min()), float(a.max())
+    stats = {"min": round(lo, 4), "max": round(hi, 4),
+             "mean": round(float(a.mean()), 4),
+             "median": round(float(np.median(a)), 4),
+             "std": round(float(a.std()), 4),
+             "p5": round(float(np.percentile(a, 5)), 4),
+             "p95": round(float(np.percentile(a, 95)), 4)}
+    try:
+        counts, edges = np.histogram(a, bins=bins,
+                                     range=(min(lo, -1.0), max(hi, 1.0)))
+        hist = {"counts": [int(c) for c in counts],
+                "edges": [round(float(e), 4) for e in edges]}
+    except Exception:
+        hist = {"counts": [], "edges": []}
+    return stats, hist
+
+
+def _unavailable(name: str, have: _List[str]) -> IndexResult:
+    d = INDEX_DEFS[name]
+    missing = [b for b in d["required_bands"] if b not in have]
+    return IndexResult(
+        name=name, formula=d["formula"], required_bands=d["required_bands"],
+        available=False,
+        reason=f"Unavailable: missing band(s) {missing} "
+               f"(have: {sorted(have)}). No substitution was made.",
+        description=d["description"], stats={}, histogram={})
+
+
+def compute_all_indices(scene: Scene, fs: FeatureStack) -> _Dict[str, IndexResult]:
+    """Compute every supported index honestly (NIR-gated where required)."""
+    have = ["red", "green", "blue"] + (["nir"] if scene.nir is not None else [])
+    out: _Dict[str, IndexResult] = {}
+
+    def _pack(name: str, arr: np.ndarray) -> IndexResult:
+        d = INDEX_DEFS[name]
+        stats, hist = index_stats(arr)
+        return IndexResult(name=name, formula=d["formula"],
+                           required_bands=d["required_bands"], available=True,
+                           reason="", description=d["description"],
+                           stats=stats, histogram=hist)
+
+    # RGB-always indices (computed from the same arrays the v1 pipeline uses).
+    out["VARI"] = _pack("VARI", fs.veg_index if fs.veg_index_name.startswith("VARI")
+                        else np.clip((fs.g - fs.r) / (fs.g + fs.r - fs.b + EPS), -1, 1))
+    out["ExG"] = _pack("ExG", fs.exg)
+    out["water_proxy"] = _pack("water_proxy", fs.water_index
+                               if "proxy" in fs.water_index_name.lower()
+                               else np.clip((fs.b - fs.r) / (fs.b + fs.r + EPS), -1, 1))
+
+    if scene.nir is not None:
+        n = scene.nir.astype(np.float32)
+        out["NDVI"] = _pack("NDVI", fs.veg_index if fs.veg_index_name == "NDVI"
+                            else (n - fs.r) / (n + fs.r + EPS))
+        out["NDWI"] = _pack("NDWI", fs.water_index if fs.water_index_name == "NDWI"
+                            else (fs.g - n) / (fs.g + n + EPS))
+        out["SAVI"] = _pack("SAVI", ((n - fs.r) / (n + fs.r + 0.5)) * 1.5)
+        out["EVI"] = _pack("EVI", np.clip(
+            2.5 * (n - fs.r) / (n + 6 * fs.r - 7.5 * fs.b + 1.0), -1, 1))
+        out["GNDVI"] = _pack("GNDVI", (n - fs.g) / (n + fs.g + EPS))
+    else:
+        for name in ("NDVI", "NDWI", "SAVI", "EVI", "GNDVI"):
+            out[name] = _unavailable(name, have)
+
+    # SWIR is never present in current ingestion (honest unavailable states).
+    for name in ("MNDWI", "NDBI"):
+        out[name] = _unavailable(name, have)
+    return out
+
+
+def spatial_statistics(fs: FeatureStack) -> _Dict[str, _Any]:
+    """Scene-level spatial/statistical descriptors (all measured)."""
+    out: _Dict[str, _Any] = {}
+    for key, arr in (("brightness", fs.brightness),
+                     ("saturation", fs.saturation),
+                     ("texture", fs.texture),
+                     ("edge_density", fs.edges)):
+        stats, _ = index_stats(arr, bins=24)
+        out[key] = stats
+    tex = out.get("texture", {})
+    out["interpretation"] = {
+        "contrast": ("high" if tex.get("std", 0) > 0.09 else
+                     "moderate" if tex.get("std", 0) > 0.05 else "low"),
+        "note": "Contrast judged from texture std-dev; thresholds are "
+                "documented in core/config.py quality rules.",
+    }
+    return out

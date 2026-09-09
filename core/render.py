@@ -109,3 +109,32 @@ def legend_payload(lc: LandCover) -> List[dict]:
                     "area_km2": round(lc.areas_km2.get(c, 0.0), 4)})
     out.sort(key=lambda d: -d["fraction"])
     return out
+
+
+# --------------------------------------------------------------------------- #
+# v2: uncertainty / severity visualisation (additive)
+# --------------------------------------------------------------------------- #
+def uncertainty_overlay(rgb: np.ndarray, uncertainty, alpha: float = 0.60) -> np.ndarray:
+    """Render per-pixel classification uncertainty (bright = less certain)."""
+    u = np.asarray(uncertainty, dtype=np.float32)
+    u = np.clip((u - float(u.min())) / (float(u.max()) - float(u.min()) + 1e-6), 0, 1)
+    cm = cv2.applyColorMap((u * 255).astype(np.uint8), cv2.COLORMAP_INFERNO)
+    cm = cv2.cvtColor(cm, cv2.COLOR_BGR2RGB)
+    return cv2.addWeighted(rgb, 1 - alpha, cm, alpha, 0)
+
+
+def severity_color(severity: str) -> tuple:
+    return {"LOW": (34, 211, 154), "MEDIUM": (255, 176, 32),
+            "HIGH": (255, 92, 92)}.get(str(severity).upper(), (142, 160, 189))
+
+
+def hotspots_overlay(rgb: np.ndarray, hotspots: List[dict]) -> np.ndarray:
+    """Draw change-hotspot boxes with severity-tinted outlines."""
+    out = rgb.copy()
+    for i, h in enumerate(hotspots or []):
+        x, y, w, hh = (int(v) for v in h.get("bbox", [0, 0, 0, 0]))
+        col = severity_color(h.get("severity", "MEDIUM"))
+        cv2.rectangle(out, (x, y), (x + w, y + hh), col, 2, cv2.LINE_AA)
+        cv2.putText(out, f"H{i+1}", (x + 4, max(y - 6, 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, col, 1, cv2.LINE_AA)
+    return out
